@@ -8,9 +8,9 @@ interface ContextProviderProps {
 }
 
 // Types must be declared at module scope (not inside component functions)
-type Message = { role: 'user' | 'assistant', content: string }
-type UploadedFile = { name: string, type: string, size: number, content?: string, buffer?: ArrayBuffer }
-type Chat = { id: string, title: string, messages: Message[], files: UploadedFile[], createdAt: string }
+ type Message = { role: 'user' | 'assistant', content: string }
+ type UploadedFile = { name: string, type: string, size: number, content?: string, buffer?: ArrayBuffer }
+ type Chat = { id: string, title: string, messages: Message[], files: UploadedFile[], createdAt: string }
 
 const ContextProvider = ({ children }: ContextProviderProps) => {
     const [input, setInput] = useState("")
@@ -223,6 +223,11 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
       })
     }
 
+    const setCurrentChatTitle = (title: string) => {
+      const t = (title || '').trim()
+      setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: t.length ? t : dict.newChat } : c))
+    }
+
     const contextValue = {
         prevPrompts: prevPrompts,
         setPrevPrompts,
@@ -251,7 +256,8 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
         handleFileUpload,
         exportConversation,
         exportConversationById,
-        deleteChat
+        deleteChat,
+        setCurrentChatTitle
     }
 
     return (

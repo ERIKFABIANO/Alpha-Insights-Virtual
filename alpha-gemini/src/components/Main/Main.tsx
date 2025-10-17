@@ -1,4 +1,4 @@
-import { useContext } from 'react'
+import { useContext, useState } from 'react'
 import { assets } from '../../assets/assets'
 import './Main.css'
 import { Context } from '../../context/Context'
@@ -15,14 +15,34 @@ const Main = () => {
     input,
     dict,
     handleFileUpload,
-    uploadedFiles
+    uploadedFiles,
+    chats,
+    currentChatId,
+    setCurrentChatTitle
   } = useContext(Context)
+
+  const currentTitle = (chats.find((c: any) => c.id === currentChatId)?.title) || dict.newChat
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [tempTitle, setTempTitle] = useState(currentTitle)
+  const saveTitle = () => { setCurrentChatTitle(tempTitle); setIsRenaming(false) }
 
   return (
     <main className='main'>
       <nav className="nav">
-        <p>Gemini</p>
-        {/* ícone de login removido */}
+        <div className="chat-title">
+          {isRenaming ? (
+            <input
+              value={tempTitle}
+              onChange={(e) => setTempTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { setIsRenaming(false); setTempTitle(currentTitle) } }}
+              onBlur={saveTitle}
+              placeholder={dict.newChat}
+            />
+          ) : (
+            <p>{currentTitle}</p>
+          )}
+          <span className="material-symbols-outlined icon-button" aria-hidden onClick={() => { if (isRenaming) { saveTitle() } else { setTempTitle(currentTitle); setIsRenaming(true) } }}>{isRenaming ? 'check' : 'edit'}</span>
+        </div>
       </nav>
       <section className="main-container">
         <div className="greet">
@@ -57,10 +77,10 @@ const Main = () => {
             <div>
               {/* Upload local de PDF/Excel via ícone de clipe */}
               <label htmlFor="fileUpload" style={{cursor:'pointer'}} title={dict.uploadLabel}>
-                <span style={{fontSize:'20px'}}>📎</span>
+                <span className="material-symbols-outlined icon-button" aria-hidden>attach_file</span>
               </label>
               <input id="fileUpload" type="file" accept=".pdf,.xlsx,.xls" multiple style={{display:'none'}} onChange={(e) => handleFileUpload(e.target.files)} />
-              <img onClick={() => onSent()} src={assets.send_icon} alt="" />
+              <span className="material-symbols-outlined icon-button" onClick={() => onSent()} title={dict.sendLabel || 'Enviar'}>send</span>
             </div>
           </div>
           {/* Lista rápida de arquivos selecionados */}

@@ -60,13 +60,11 @@ const Main = () => {
             </div>
             <div className="result-data">
               <img src={assets.gemini_icon} width={36} height={36} alt="" />
-              {loading ? <>
-                <div className='loader'>
-                  <hr />
-                  <hr />
-                  <hr />
+              {loading ? (
+                <div className="loader-dots" aria-live="polite" aria-label={dict.thinkingLabel || 'Gerando resposta'}>
+                  <span></span><span></span><span></span>
                 </div>
-              </> : <p dangerouslySetInnerHTML={{__html:resultData}}></p>}
+              ) : <p dangerouslySetInnerHTML={{__html:resultData}}></p>}
               
             </div>
           </div> 

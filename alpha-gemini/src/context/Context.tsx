@@ -120,14 +120,19 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
         let response
         let userMessage = ''
         if (prompt !== undefined) {
-            response = await chat(prompt)
-            setRecentPrompt(prompt)
             userMessage = prompt
+            setRecentPrompt(prompt)
+            // Limpa imediatamente o campo de entrada
+            setInput("")
+            response = await chat(prompt)
         } else {
-            setPrevPrompts(prev => [...prev, input])
-            setRecentPrompt(input)
-            userMessage = input
-            response = await chat(input)
+            const typed = input
+            setPrevPrompts(prev => [...prev, typed])
+            setRecentPrompt(typed)
+            userMessage = typed
+            // Limpa imediatamente o campo de entrada
+            setInput("")
+            response = await chat(typed)
         }
         // Guarda mensagem do usuário no chat atual
         setChats(prev => prev.map(c => {
@@ -153,8 +158,8 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
         // Guarda resposta do assistente (HTML processado) no chat atual
         setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages, { role: 'assistant', content: newResponse2 }] } : c))
         setLoading(false)
-        setInput("")
     }
+
 
     const exportConversation = () => {
       const chat = currentChat

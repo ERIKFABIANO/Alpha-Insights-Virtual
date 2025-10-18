@@ -117,47 +117,56 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
         setResultData("")
         setLoading(true)
         setShowResult(true)
-        let response
+        let response: string = ''
         let userMessage = ''
-        if (prompt !== undefined) {
-            userMessage = prompt
-            setRecentPrompt(prompt)
-            // Limpa imediatamente o campo de entrada
-            setInput("")
-            response = await chat(prompt)
-        } else {
-            const typed = input
-            setPrevPrompts(prev => [...prev, typed])
-            setRecentPrompt(typed)
-            userMessage = typed
-            // Limpa imediatamente o campo de entrada
-            setInput("")
-            response = await chat(typed)
-        }
-        // Guarda mensagem do usuário no chat atual
-        setChats(prev => prev.map(c => {
-            if (c.id !== currentChatId) return c
-            const newTitle = c.title === dict.newChat && userMessage ? userMessage.slice(0, 30) : c.title
-            return { ...c, title: newTitle, messages: [...c.messages, { role: 'user', content: userMessage }] }
-        }))
-        let responseArray = response.split("**")
-        let newResponse = "";
-        for (let i = 0; i < responseArray.length; i++) {
-            if (i === 0 || i % 2 !== 1) {
-                newResponse += responseArray[i]
+        try {
+            if (prompt !== undefined) {
+                userMessage = prompt
+                setRecentPrompt(prompt)
+                // Limpa imediatamente o campo de entrada
+                setInput("")
+                response = await chat(prompt)
             } else {
-                newResponse += "<b>" + responseArray[i] + "</b>"
+                const typed = input
+                setPrevPrompts(prev => [...prev, typed])
+                setRecentPrompt(typed)
+                userMessage = typed
+                // Limpa imediatamente o campo de entrada
+                setInput("")
+                response = await chat(typed)
             }
+            // Guarda mensagem do usuário no chat atual
+            setChats(prev => prev.map(c => {
+                if (c.id !== currentChatId) return c
+                const newTitle = c.title === dict.newChat && userMessage ? userMessage.slice(0, 30) : c.title
+                return { ...c, title: newTitle, messages: [...c.messages, { role: 'user', content: userMessage }] }
+            }))
+            let responseArray = response.split("**")
+            let newResponse = "";
+            for (let i = 0; i < responseArray.length; i++) {
+                if (i === 0 || i % 2 !== 1) {
+                    newResponse += responseArray[i]
+                } else {
+                    newResponse += "<b>" + responseArray[i] + "</b>"
+                }
+            }
+            let newResponse2 = newResponse.split("*").join("</br>")
+            let newResponseArray = newResponse2.split(" ")
+            for (let i = 0; i < newResponseArray.length; i++) {
+                const nextWord = newResponseArray[i]
+                delayPara(i, nextWord + " ")
+            }
+            // Guarda resposta do assistente (HTML processado) no chat atual
+            setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages, { role: 'assistant', content: newResponse2 }] } : c))
+            setLoading(false)
+        } catch (e: any) {
+            // Exibe erro e encerra loader para não ficar "pensando" infinito
+            const msg = e?.message ? String(e.message) : 'Erro inesperado ao chamar a API.'
+            const advice = 'Verifique variáveis no Vercel (GOOGLE_* e DRIVE_FOLDER_ID) e compartilhe a pasta do Drive com o e-mail do token. Abra os logs de Functions para detalhes.'
+            setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages, { role: 'assistant', content: `⚠️ ${msg}\n\n${advice}` }] } : c))
+            setLoading(false)
+            setShowResult(true)
         }
-        let newResponse2 = newResponse.split("*").join("</br>")
-        let newResponseArray = newResponse2.split(" ")
-        for (let i = 0; i < newResponseArray.length; i++) {
-            const nextWord = newResponseArray[i]
-            delayPara(i, nextWord + " ")
-        }
-        // Guarda resposta do assistente (HTML processado) no chat atual
-        setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages, { role: 'assistant', content: newResponse2 }] } : c))
-        setLoading(false)
     }
 
 

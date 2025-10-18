@@ -257,6 +257,12 @@ export default async function handler(req: any, res: any) {
         const first = files[0];
         const rows = await withTimeout(rowsFromUpload(first), 8000);
         if (rows.length) {
+          const intent = detectIntent(question || '');
+          if (intent.kind === 'expense') {
+            const total = sumExpensesFromRows(rows);
+            const txt = `Total de despesas: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
+            return res.status(200).json({ response: txt });
+          }
           if (apiKey) {
             const summary = await summarizeRowsWithLLM(rows, apiKey, first?.name || 'arquivo', question || '');
             if (summary) return res.status(200).json({ response: summary });
@@ -300,6 +306,12 @@ export default async function handler(req: any, res: any) {
         if (!rows.length) {
           return res.status(200).json({ response: `A planilha "${target.name}" parece vazia ou inacessível.` });
         }
+        const intent = detectIntent(question || '');
+        if (intent.kind === 'expense') {
+          const sum = await sumExpensesForFile(target, oauth2);
+          const txt = `Total de despesas em ${target.name}: ${sum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
+          return res.status(200).json({ response: txt });
+        }
         if (apiKey) {
           const summary = await summarizeRowsWithLLM(rows, apiKey, target.name, question || '');
           if (summary) return res.status(200).json({ response: summary });
@@ -332,4 +344,25 @@ export default async function handler(req: any, res: any) {
   } catch (e: any) {
     return res.status(500).json({ error: 'Falha no handler', details: e?.message || String(e) });
   }
+}
+
+function detectIntent(text: string): { kind: 'expense' | 'income' | 'savings' | 'balance' | 'generic' } {
+  const t = normalize(text);
+  if (!t) return { kind: 'generic' };
+  const expenseTerms = ['despesa','despesas','gasto','gastos','saida','saidas','saída','saídas'];
+  for (const term of expenseTerms) {
+    if (t.includes(term)) return { kind: 'expense' };
+  }
+  return { kind: 'generic' };
+}
+
+function sumExpensesFromRows(rows: Record<string, any>[]): number {
+  let total = 0;
+  for (const r of rows) {
+    if (isExpenseRow(r)) {
+      const n = pickNumericValue(r);
+      if (typeof n === 'number') total += n;
+    }
+  }
+  return total;
 }

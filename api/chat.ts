@@ -1,7 +1,8 @@
 export const config = { runtime: 'nodejs' };
 
-import { google } from 'googleapis';
-import XLSX from 'xlsx';
+// Remover imports pesados do topo para evitar cold start lento
+// import { google } from 'googleapis';
+// import XLSX from 'xlsx';
 
 type ChatBody = { prompt?: string; message?: string };
 
@@ -80,6 +81,7 @@ function pickNumericValue(row: Record<string, any>): number | null {
 }
 
 async function readGoogleSheet(spreadsheetId: string, auth: any): Promise<Record<string, any>[]> {
+  const { google } = await import('googleapis');
   const sheets = google.sheets({ version: 'v4', auth });
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const firstTitle = meta.data.sheets?.[0]?.properties?.title || 'Sheet1';
@@ -99,6 +101,8 @@ async function readGoogleSheet(spreadsheetId: string, auth: any): Promise<Record
 }
 
 async function readXlsxFile(fileId: string, auth: any): Promise<Record<string, any>[]> {
+  const { google } = await import('googleapis');
+  const XLSX = (await import('xlsx')).default;
   const drive = google.drive({ version: 'v3', auth });
   const resp = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
   const buffer = Buffer.from(resp.data as ArrayBuffer);
@@ -111,6 +115,7 @@ async function readXlsxFile(fileId: string, auth: any): Promise<Record<string, a
 }
 
 async function listFilesFromDrive(folderId: string, auth: any): Promise<DriveFile[]> {
+  const { google } = await import('googleapis');
   const drive = google.drive({ version: 'v3', auth });
   const q = `'${folderId}' in parents and trashed = false and (\n      mimeType = 'application/vnd.google-apps.spreadsheet' or\n      mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or\n      mimeType = 'application/vnd.ms-excel'\n    )`;
   const res = await drive.files.list({ q, fields: 'files(id,name,mimeType)', pageSize: 50, orderBy: 'name' });
@@ -166,6 +171,7 @@ export default async function handler(req: Request): Promise<Response> {
     const haveGoogleCreds = Boolean(folderId && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI && process.env.GOOGLE_REFRESH_TOKEN);
     if (haveGoogleCreds) {
       try {
+        const { google } = await import('googleapis');
         const oauth2 = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI);
         oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
         await withTimeout(oauth2.getAccessToken(), 5000);
@@ -187,7 +193,6 @@ export default async function handler(req: Request): Promise<Response> {
         const quickAnswer = `Total de despesas em ${target.name}: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
         return new Response(JSON.stringify({ response: quickAnswer }), { status: 200, headers: { 'content-type': 'application/json' } });
       } catch (e: any) {
-        // Se falhar (inclusive por timeout), segue para LLM
         console.error('Drive compute error:', e?.message || e);
       }
     }

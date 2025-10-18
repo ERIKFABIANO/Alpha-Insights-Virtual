@@ -156,6 +156,52 @@ async function fetchWithTimeout(url: string, opts: any, ms: number): Promise<Res
   }
 }
 
+async function readRowsForFile(file: DriveFile, auth: any): Promise<Record<string, any>[]> {
+  if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
+    return await readGoogleSheet(file.id, auth);
+  }
+  return await readXlsxFile(file.id, auth);
+}
+
+function toCsvPreview(rows: Record<string, any>[], maxRows = 40): string {
+  if (!rows.length) return 'vazio';
+  const headers = Array.from(new Set(rows.flatMap(r => Object.keys(r))));
+  const headerLine = headers.join(';');
+  const lines: string[] = [headerLine];
+  for (let i = 0; i < Math.min(rows.length, maxRows); i++) {
+    const r = rows[i];
+    const vals = headers.map(h => String(r[h] ?? ''));
+    lines.push(vals.join(';'));
+  }
+  return lines.join('\n');
+}
+
+async function summarizeRowsWithLLM(rows: Record<string, any>[], apiKey: string, fileName: string, question: string): Promise<string | null> {
+  try {
+    const csv = toCsvPreview(rows, 60);
+    const contextText = [
+      `Pergunta do usuário: ${question}`,
+      `Você é um assistente financeiro. Abaixo está uma amostra das linhas extraídas da planilha "${fileName}" (CSV).`,
+      `Amostra:`,
+      csv,
+      `Tarefa: gere um resumo objetivo em pt-BR do conteúdo da planilha.`,
+      `Use títulos se disponíveis (por exemplo: Orçamento Mensal, Despesas, Renda, Poupança, Pagamento).`,
+      `Onde houver colunas Planejado/Real/Diferença, reporte os valores exatos encontrados.`,
+      `Não invente valores. Se o dado não existir na amostra, omita-o.`,
+    ].join('\n');
+
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const payload = { contents: [ { parts: [{ text: contextText }] } ] };
+    const resp = await fetchWithTimeout(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }, 10000);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('\n') ?? '';
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req: any, res: any) {
   try {
     if (req.method !== 'POST') {
@@ -191,7 +237,18 @@ export default async function handler(req: any, res: any) {
           const msg = names.length ? `Não achei planilha para "${month}". Disponíveis: ${names.join(', ')}.` : 'Não encontrei planilhas na pasta do Drive.';
           return res.status(200).json({ response: msg });
         }
-        const total = await withTimeout(sumExpensesForFile(target, oauth2), 10000);
+
+        // Novo: tentar gerar um resumo detalhado com base nas linhas da planilha
+        const rows = await withTimeout(readRowsForFile(target, oauth2), 10000);
+        if (apiKey) {
+          const summary = await summarizeRowsWithLLM(rows, apiKey, target.name, question || '');
+          if (summary) {
+            return res.status(200).json({ response: summary });
+          }
+        }
+
+        // Fallback: se não conseguir resumir, retorne o total de despesas
+        const total = await withTimeout(sumExpensesForFile(target, oauth2), 8000);
         const quickAnswer = `Total de despesas em ${target.name}: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
         return res.status(200).json({ response: quickAnswer });
       } catch (e: any) {

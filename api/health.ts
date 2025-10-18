@@ -1,9 +1,6 @@
 export const config = { runtime: 'nodejs18.x' };
 
-export default async function handler(_req: Request): Promise<Response> {
+export default function handler(_req: any, res: any) {
   const payload = { ok: true, ts: Date.now() };
-  return new Response(JSON.stringify(payload), {
-    status: 200,
-    headers: { 'content-type': 'application/json' }
-  });
+  return res.status(200).json(payload);
 }

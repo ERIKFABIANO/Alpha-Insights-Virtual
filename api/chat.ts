@@ -156,13 +156,15 @@ async function fetchWithTimeout(url: string, opts: any, ms: number): Promise<Res
   }
 }
 
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req: any, res: any) {
   try {
     if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { 'content-type': 'application/json' } });
+      return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { prompt, message }: ChatBody = await req.json().catch(() => ({ prompt: '' }));
+    const bodyRaw = req.body;
+    const body = typeof bodyRaw === 'string' ? (() => { try { return JSON.parse(bodyRaw); } catch { return {}; } })() : (bodyRaw || {});
+    const { prompt, message }: ChatBody = body as ChatBody;
     const question = typeof prompt === 'string' && prompt.length ? prompt : (typeof message === 'string' ? message : '');
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.LLM_API_KEY || '';
@@ -181,24 +183,24 @@ export default async function handler(req: Request): Promise<Response> {
         if (!month) {
           const names = files.map(f => f.name);
           const msg = names.length ? `Me diga o mês. Encontrei: ${names.join(', ')}.` : 'Não encontrei planilhas na pasta do Drive.';
-          return new Response(JSON.stringify({ response: msg }), { status: 200, headers: { 'content-type': 'application/json' } });
+          return res.status(200).json({ response: msg });
         }
         const target = files.find(f => normalize(f.name).includes(month));
         if (!target) {
           const names = files.map(f => f.name);
           const msg = names.length ? `Não achei planilha para "${month}". Disponíveis: ${names.join(', ')}.` : 'Não encontrei planilhas na pasta do Drive.';
-          return new Response(JSON.stringify({ response: msg }), { status: 200, headers: { 'content-type': 'application/json' } });
+          return res.status(200).json({ response: msg });
         }
         const total = await withTimeout(sumExpensesForFile(target, oauth2), 10000);
         const quickAnswer = `Total de despesas em ${target.name}: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
-        return new Response(JSON.stringify({ response: quickAnswer }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return res.status(200).json({ response: quickAnswer });
       } catch (e: any) {
         console.error('Drive compute error:', e?.message || e);
       }
     }
 
     if (!apiKey) {
-      return new Response(JSON.stringify({ response: 'Configure GEMINI_API_KEY nas variáveis do projeto Vercel.' }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return res.status(200).json({ response: 'Configure GEMINI_API_KEY nas variáveis do projeto Vercel.' });
     }
     const contextText = `Pergunta: ${question}.`;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
@@ -206,16 +208,13 @@ export default async function handler(req: Request): Promise<Response> {
     const resp = await fetchWithTimeout(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }, 10000);
     if (!resp.ok) {
       const detail = await resp.text().catch(() => 'unknown error');
-      return new Response(JSON.stringify({ error: 'Erro na API', details: detail }), { status: 500, headers: { 'content-type': 'application/json' } });
+      return res.status(500).json({ error: 'Erro na API', details: detail });
     }
     const data = await resp.json();
     const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('\n') ?? '';
 
-    return new Response(JSON.stringify({ response: text }), { status: 200, headers: { 'content-type': 'application/json' } });
+    return res.status(200).json({ response: text });
   } catch (e: any) {
-    return new Response(
-      JSON.stringify({ error: 'Falha no handler', details: e?.message || String(e) }),
-      { status: 500, headers: { 'content-type': 'application/json' } }
-    );
+    return res.status(500).json({ error: 'Falha no handler', details: e?.message || String(e) });
   }
 }

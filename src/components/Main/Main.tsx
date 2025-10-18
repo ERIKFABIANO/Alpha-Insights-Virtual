@@ -77,7 +77,7 @@ const Main = () => {
               <label htmlFor="fileUpload" style={{cursor:'pointer'}} title={dict.uploadLabel}>
                 <span className="material-symbols-outlined icon-button" aria-hidden>attach_file</span>
               </label>
-              <input id="fileUpload" type="file" accept=".pdf,.xlsx,.xls" multiple style={{display:'none'}} onChange={(e) => handleFileUpload(e.target.files)} />
+              <input id="fileUpload" type="file" accept=".pdf,.xlsx,.xls,.csv,.txt,.json" multiple style={{display:'none'}} onChange={(e) => handleFileUpload(e.target.files)} />
               <span className="material-symbols-outlined icon-button" onClick={() => onSent()} title={dict.sendLabel || 'Enviar'}>send</span>
             </div>
           </div>

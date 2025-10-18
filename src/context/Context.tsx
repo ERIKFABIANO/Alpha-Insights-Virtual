@@ -96,6 +96,40 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
       })
     }
 
+    const arrayBufferToBase64 = (buf: ArrayBuffer) => {
+      let binary = ''
+      const bytes = new Uint8Array(buf)
+      const len = bytes.byteLength
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i])
+      }
+      return btoa(binary)
+    }
+
+    const markdownToHtml = (md: string) => {
+      // Conversão básica para HTML: títulos, negrito, itálico, listas e quebras de linha
+      let html = md
+      // Code blocks
+      html = html.replace(/```([\s\S]*?)```/g, (m, p1) => `<pre><code>${p1.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`)
+      // Bold **text**
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      // Italic *text*
+      html = html.replace(/\*(.*?)\*/g, '<em>$1</em>')
+      // Headings
+      html = html.replace(/^######\s?(.*)$/gm, '<h6>$1</h6>')
+      html = html.replace(/^#####\s?(.*)$/gm, '<h5>$1</h5>')
+      html = html.replace(/^####\s?(.*)$/gm, '<h4>$1</h4>')
+      html = html.replace(/^###\s?(.*)$/gm, '<h3>$1</h3>')
+      html = html.replace(/^##\s?(.*)$/gm, '<h2>$1</h2>')
+      html = html.replace(/^#\s?(.*)$/gm, '<h1>$1</h1>')
+      // Lists
+      html = html.replace(/^\-\s(.*)$/gm, '<li>$1</li>')
+      html = html.replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m.replace(/\n/g,'')}</ul>`)
+      // Line breaks
+      html = html.replace(/\n/g, '<br/>')
+      return html
+    }
+
     const delayPara = (index: number, nextWord: string) => {
         setTimeout(function() {
             setResultData(prev => prev + nextWord)
@@ -120,12 +154,20 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
         let response: string = ''
         let userMessage = ''
         try {
+            // Prepara payload de arquivos anexados
+            const filesPayload = uploadedFiles.map(f => {
+              if (f.buffer) {
+                return { name: f.name, type: f.type, size: f.size, bufferBase64: arrayBufferToBase64(f.buffer) }
+              }
+              return { name: f.name, type: f.type, size: f.size, content: f.content || '' }
+            })
+
             if (prompt !== undefined) {
                 userMessage = prompt
                 setRecentPrompt(prompt)
                 // Limpa imediatamente o campo de entrada
                 setInput("")
-                response = await chat(prompt)
+                response = await chat(prompt, filesPayload)
             } else {
                 const typed = input
                 setPrevPrompts(prev => [...prev, typed])
@@ -133,7 +175,7 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
                 userMessage = typed
                 // Limpa imediatamente o campo de entrada
                 setInput("")
-                response = await chat(typed)
+                response = await chat(typed, filesPayload)
             }
             // Guarda mensagem do usuário no chat atual
             setChats(prev => prev.map(c => {
@@ -141,23 +183,15 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
                 const newTitle = c.title === dict.newChat && userMessage ? userMessage.slice(0, 30) : c.title
                 return { ...c, title: newTitle, messages: [...c.messages, { role: 'user', content: userMessage }] }
             }))
-            let responseArray = response.split("**")
-            let newResponse = "";
-            for (let i = 0; i < responseArray.length; i++) {
-                if (i === 0 || i % 2 !== 1) {
-                    newResponse += responseArray[i]
-                } else {
-                    newResponse += "<b>" + responseArray[i] + "</b>"
-                }
-            }
-            let newResponse2 = newResponse.split("*").join("</br>")
-            let newResponseArray = newResponse2.split(" ")
-            for (let i = 0; i < newResponseArray.length; i++) {
-                const nextWord = newResponseArray[i]
-                delayPara(i, nextWord + " ")
+
+            // Converte Markdown da resposta para HTML e faz animação de palavras
+            const html = markdownToHtml(response)
+            const words = html.split(' ')
+            for (let i = 0; i < words.length; i++) {
+                delayPara(i, words[i] + ' ')
             }
             // Guarda resposta do assistente (HTML processado) no chat atual
-            setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages, { role: 'assistant', content: newResponse2 }] } : c))
+            setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages, { role: 'assistant', content: html }] } : c))
             setLoading(false)
         } catch (e: any) {
             // Exibe erro e encerra loader para não ficar "pensando" infinito
@@ -238,46 +272,43 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
     }
 
     const setCurrentChatTitle = (title: string) => {
-      const t = (title || '').trim()
-      setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: t.length ? t : dict.newChat } : c))
+      setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title } : c))
     }
 
-    const contextValue = {
-        prevPrompts: prevPrompts,
-        setPrevPrompts,
-        onSent,
-        setRecentPrompt,
-        recentPrompt,
-        showResult,
-        loading,
-        resultData,
-        input,
-        setInput,
-        newChat,
-        // Idioma
-        language,
-        setLanguage: (lang: 'pt'|'en') => { setLanguage(lang); localStorage.setItem('language', lang) },
+    return (
+      <Context.Provider value={{
         dict,
-        // Configurações
         isSettingsOpen,
         setIsSettingsOpen,
-        // Chats
         chats,
         currentChatId,
         setCurrentChatId,
         conversation,
         uploadedFiles,
+        input,
+        setInput,
+        recentPrompt,
+        prevPrompts,
+        showResult,
+        loading,
+        resultData,
+        onSent,
+        setRecentPrompt,
+        setPrevPrompts,
+        setShowResult,
+        setLoading,
+        setResultData,
+        newChat,
         handleFileUpload,
         exportConversation,
         exportConversationById,
         deleteChat,
-        setCurrentChatTitle
-    }
-
-    return (
-        <Context.Provider value={contextValue}>
-            {children}
-        </Context.Provider>
+        setCurrentChatTitle,
+        language,
+        setLanguage
+      }}>
+        {children}
+      </Context.Provider>
     )
 }
 

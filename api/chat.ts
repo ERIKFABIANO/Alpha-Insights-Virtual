@@ -36,46 +36,40 @@ function parsePtNumber(v: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function detectMonth(text: string): string | null {
-  const t = normalize(text);
-  const months = [
-    'janeiro','fevereiro','marco','março','abril','maio','junho',
-    'julho','agosto','setembro','outubro','novembro','dezembro'
-  ];
-  const abbr = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  for (const m of months) if (t.includes(m)) return m.replace('março','marco');
-  for (const a of abbr) if (t.includes(a)) {
-    if (a === 'mar') return 'marco';
-    const idx = abbr.indexOf(a);
-    return months[idx];
+function isExpenseRow(row: Record<string, any>): boolean {
+  const keys = Object.keys(row);
+  const joined = keys.join(' ').toLowerCase();
+  if (joined.includes('despesa') || joined.includes('gasto') || joined.includes('expense')) return true;
+  // heurística: se a linha tem colunas de valores com números negativos
+  for (const k of keys) {
+    const v = parsePtNumber(row[k]);
+    if (typeof v === 'number' && v < 0) return true;
+  }
+  return false;
+}
+
+function pickNumericValue(row: Record<string, any>): number | null {
+  // Procura primeiro colunas que são típicas
+  for (const key of Object.keys(row)) {
+    const lk = key.toLowerCase();
+    if (lk.includes('valor') || lk.includes('real') || lk.includes('despesa') || lk.includes('expense') || lk.includes('total')) {
+      const n = parsePtNumber(row[key]);
+      if (typeof n === 'number') return n;
+    }
+  }
+  // fallback: pega o primeiro campo numérico
+  for (const key of Object.keys(row)) {
+    const n = parsePtNumber(row[key]);
+    if (typeof n === 'number') return n;
   }
   return null;
 }
 
-function isExpenseRow(row: Record<string, any>): boolean {
-  const tipo = normalize(row['Tipo'] ?? row['tipo']);
-  if (tipo) {
-    if (/(despesa|saida|saidas|gasto|gastos)/.test(tipo)) return true;
-    if (/(receita|entrada|entradas)/.test(tipo)) return false;
-  }
-  const cat = normalize(row['Categoria'] ?? row['categoria'] ?? row['Descricao'] ?? row['descrição'] ?? row['descricao']);
-  if (/(aluguel|conta|luz|agua|internet|mercado|compras|taxa|imposto|combustivel|transporte|telefone)/.test(cat)) return true;
-  return true;
-}
-
-function pickNumericValue(row: Record<string, any>): number | null {
-  const keys = Object.keys(row);
-  const pref = ['real','valor','despesa','saida','gasto','total'];
-  for (const p of pref) {
-    const key = keys.find(k => normalize(k).includes(p));
-    if (key) {
-      const n = parsePtNumber(row[key]);
-      if (n != null) return n;
-    }
-  }
-  for (const k of keys) {
-    const n = parsePtNumber(row[k]);
-    if (n != null) return n;
+function detectMonth(text: string): string | null {
+  const t = normalize(text);
+  const months = ['janeiro','fevereiro','marco','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  for (const m of months) {
+    if (t.includes(m)) return m;
   }
   return null;
 }
@@ -176,23 +170,64 @@ function toCsvPreview(rows: Record<string, any>[], maxRows = 40): string {
   return lines.join('\n');
 }
 
+function parseCsvRows(text: string): Record<string, any>[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (!lines.length) return [];
+  const headers = lines[0].split(/;|,/).map(h => h.trim());
+  const rows: Record<string, any>[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(/;|,/);
+    const obj: Record<string, any> = {};
+    headers.forEach((h, idx) => {
+      obj[h] = cols[idx] ?? '';
+    });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function bufferFromBase64(input: string): Buffer {
+  return Buffer.from(input, 'base64')
+}
+
+async function rowsFromUpload(upload: { name: string, type?: string, size?: number, content?: string, encoding?: string, bufferBase64?: string }): Promise<Record<string, any>[]> {
+  const lower = (upload.name || '').toLowerCase()
+  if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+    const XLSX = (await import('xlsx')).default
+    const base64 = upload.bufferBase64 || (upload.encoding === 'base64' ? upload.content : undefined)
+    const buf = base64 ? bufferFromBase64(base64) : Buffer.from(upload.content || '')
+    const wb = XLSX.read(buf, { type: 'buffer' })
+    const sheetName = wb.SheetNames[0]
+    const sheet = wb.Sheets[sheetName]
+    const data = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as Record<string, any>[]
+    return data.slice(0, 400)
+  }
+  if (lower.endsWith('.csv')) {
+    const text = upload.content || ''
+    return parseCsvRows(text).slice(0, 400)
+  }
+  // outros formatos não suportados diretamente
+  return []
+}
+
 async function summarizeRowsWithLLM(rows: Record<string, any>[], apiKey: string, fileName: string, question: string): Promise<string | null> {
   try {
-    const csv = toCsvPreview(rows, 60);
+    const csv = toCsvPreview(rows, 80);
     const contextText = [
       `Pergunta do usuário: ${question}`,
-      `Você é um assistente financeiro. Abaixo está uma amostra das linhas extraídas da planilha "${fileName}" (CSV).`,
+      `Você é um assistente financeiro. Use Markdown na resposta.`,
+      `Abaixo está uma amostra das linhas extraídas da planilha "${fileName}" (CSV).`,
       `Amostra:`,
       csv,
-      `Tarefa: gere um resumo objetivo em pt-BR do conteúdo da planilha.`,
-      `Use títulos se disponíveis (por exemplo: Orçamento Mensal, Despesas, Renda, Poupança, Pagamento).`,
+      `Tarefa: gere um resumo objetivo, em pt-BR, com Markdown (títulos, listas e tabelas quando possível).`,
+      `Use seções como: Orçamento Mensal, Despesas, Renda, Poupança, Pagamento.`,
       `Onde houver colunas Planejado/Real/Diferença, reporte os valores exatos encontrados.`,
       `Não invente valores. Se o dado não existir na amostra, omita-o.`,
     ].join('\n');
 
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
     const payload = { contents: [ { parts: [{ text: contextText }] } ] };
-    const resp = await fetchWithTimeout(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }, 10000);
+    const resp = await fetchWithTimeout(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }, 12000);
     if (!resp.ok) return null;
     const data = await resp.json();
     const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('\n') ?? '';
@@ -210,12 +245,37 @@ export default async function handler(req: any, res: any) {
 
     const bodyRaw = req.body;
     const body = typeof bodyRaw === 'string' ? (() => { try { return JSON.parse(bodyRaw); } catch { return {}; } })() : (bodyRaw || {});
-    const { prompt, message }: ChatBody = body as ChatBody;
+    const { prompt, message, files }: any = body as any;
     const question = typeof prompt === 'string' && prompt.length ? prompt : (typeof message === 'string' ? message : '');
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.LLM_API_KEY || '';
     const folderId = process.env.DRIVE_FOLDER_ID || '';
 
+    // 1) Se veio upload direto do usuário, priorizar essa leitura
+    if (Array.isArray(files) && files.length > 0) {
+      try {
+        const first = files[0];
+        const rows = await withTimeout(rowsFromUpload(first), 8000);
+        if (rows.length) {
+          if (apiKey) {
+            const summary = await summarizeRowsWithLLM(rows, apiKey, first?.name || 'arquivo', question || '');
+            if (summary) return res.status(200).json({ response: summary });
+          }
+          // Fallback: calcular total básico quando possível
+          let sum = 0;
+          for (const r of rows) {
+            const n = pickNumericValue(r);
+            if (typeof n === 'number') sum += n;
+          }
+          const fallbackMd = `**Resumo rápido (parcial)**\n\n- Arquivo: ${first?.name || 'arquivo'}\n- Linhas analisadas: ${rows.length}\n- Soma aproximada de valores numéricos: ${sum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+          return res.status(200).json({ response: fallbackMd });
+        }
+      } catch (e: any) {
+        console.error('Upload parse error:', e?.message || e);
+      }
+    }
+
+    // 2) Caso não haja upload, tenta Google Drive
     const haveGoogleCreds = Boolean(folderId && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI && process.env.GOOGLE_REFRESH_TOKEN);
     if (haveGoogleCreds) {
       try {
@@ -224,45 +284,43 @@ export default async function handler(req: any, res: any) {
         oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
         await withTimeout(oauth2.getAccessToken(), 5000);
 
-        const files = await withTimeout(listFilesFromDrive(folderId, oauth2), 8000);
+        const filesDrive = await withTimeout(listFilesFromDrive(folderId, oauth2), 8000);
         const month = detectMonth(question || '');
         if (!month) {
-          const names = files.map(f => f.name);
+          const names = filesDrive.map(f => f.name);
           const msg = names.length ? `Me diga o mês. Encontrei: ${names.join(', ')}.` : 'Não encontrei planilhas na pasta do Drive.';
           return res.status(200).json({ response: msg });
         }
-        const target = files.find(f => normalize(f.name).includes(month));
+        const target = filesDrive.find(f => normalize(f.name).includes(month));
         if (!target) {
-          const names = files.map(f => f.name);
-          const msg = names.length ? `Não achei planilha para "${month}". Disponíveis: ${names.join(', ')}.` : 'Não encontrei planilhas na pasta do Drive.';
-          return res.status(200).json({ response: msg });
+          const names = filesDrive.map(f => f.name);
+          return res.status(200).json({ response: names.length ? `Não achei a planilha de ${month}. Eu tenho: ${names.join(', ')}.` : `Não achei planilhas em ${folderId}.` });
         }
-
-        // Novo: tentar gerar um resumo detalhado com base nas linhas da planilha
-        const rows = await withTimeout(readRowsForFile(target, oauth2), 10000);
+        const rows = await withTimeout(readRowsForFile(target, oauth2), 9000);
+        if (!rows.length) {
+          return res.status(200).json({ response: `A planilha "${target.name}" parece vazia ou inacessível.` });
+        }
         if (apiKey) {
           const summary = await summarizeRowsWithLLM(rows, apiKey, target.name, question || '');
-          if (summary) {
-            return res.status(200).json({ response: summary });
-          }
+          if (summary) return res.status(200).json({ response: summary });
         }
-
-        // Fallback: se não conseguir resumir, retorne o total de despesas
-        const total = await withTimeout(sumExpensesForFile(target, oauth2), 8000);
-        const quickAnswer = `Total de despesas em ${target.name}: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
-        return res.status(200).json({ response: quickAnswer });
-      } catch (e: any) {
-        console.error('Drive compute error:', e?.message || e);
+        const sum = await sumExpensesForFile(target, oauth2);
+        const md = `**Total de despesas em ${target.name}**: ${sum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
+        return res.status(200).json({ response: md });
+      } catch (err: any) {
+        const msg = err?.message || String(err);
+        return res.status(200).json({ response: `Não consegui acessar o Drive: ${msg}` });
       }
     }
 
+    // 3) Fallback puro via LLM se não há credenciais e sem upload
     if (!apiKey) {
-      return res.status(200).json({ response: 'Configure GEMINI_API_KEY nas variáveis do projeto Vercel.' });
+      return res.status(200).json({ response: 'Envie uma planilha (CSV/XLSX) pelo clipe para eu analisar e responder em Markdown.' });
     }
-    const contextText = `Pergunta: ${question}.`;
+    const promptText = question || 'Responda em pt-BR usando Markdown.';
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    const payload = { contents: [ { parts: [{ text: contextText }] } ] };
-    const resp = await fetchWithTimeout(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }, 10000);
+    const payload = { contents: [ { parts: [{ text: promptText }] } ] };
+    const resp = await fetchWithTimeout(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }, 12000);
     if (!resp.ok) {
       const detail = await resp.text().catch(() => 'unknown error');
       return res.status(500).json({ error: 'Erro na API', details: detail });

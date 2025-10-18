@@ -106,7 +106,7 @@ async function readXlsxFile(fileId: string, auth: any): Promise<Record<string, a
   const sheetName = wb.SheetNames[0];
   const sheet = wb.Sheets[sheetName];
   const data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-  const limited = (data as Record<string, any>[]).slice(0, 300); // limita linhas para evitar demora
+  const limited = (data as Record<string, any>[]).slice(0, 300);
   return limited;
 }
 
@@ -140,6 +140,17 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+async function fetchWithTimeout(url: string, opts: any, ms: number): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 export default async function handler(req: Request): Promise<Response> {
   try {
     if (req.method !== 'POST') {
@@ -152,13 +163,12 @@ export default async function handler(req: Request): Promise<Response> {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.LLM_API_KEY || '';
     const folderId = process.env.DRIVE_FOLDER_ID || '';
 
-    // Se tivermos credenciais do Google, tentamos resposta direta por soma com orçamento de tempo
     const haveGoogleCreds = Boolean(folderId && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI && process.env.GOOGLE_REFRESH_TOKEN);
     if (haveGoogleCreds) {
       try {
         const oauth2 = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI);
         oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
-        await oauth2.getAccessToken();
+        await withTimeout(oauth2.getAccessToken(), 5000);
 
         const files = await withTimeout(listFilesFromDrive(folderId, oauth2), 8000);
         const month = detectMonth(question || '');
@@ -182,14 +192,13 @@ export default async function handler(req: Request): Promise<Response> {
       }
     }
 
-    // Fallback por LLM
     if (!apiKey) {
       return new Response(JSON.stringify({ response: 'Configure GEMINI_API_KEY nas variáveis do projeto Vercel.' }), { status: 200, headers: { 'content-type': 'application/json' } });
     }
     const contextText = `Pergunta: ${question}.`;
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
     const payload = { contents: [ { parts: [{ text: contextText }] } ] };
-    const resp = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    const resp = await fetchWithTimeout(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }, 10000);
     if (!resp.ok) {
       const detail = await resp.text().catch(() => 'unknown error');
       return new Response(JSON.stringify({ error: 'Erro na API', details: detail }), { status: 500, headers: { 'content-type': 'application/json' } });

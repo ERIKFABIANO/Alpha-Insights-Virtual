@@ -1,4 +1,4 @@
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs18.x' };
 
 // Remover imports pesados do topo para evitar cold start lento
 // import { google } from 'googleapis';

@@ -3,6 +3,10 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "devCommand": "npm run dev",
+  "functions": {
+    "api/**.ts": { "runtime": "nodejs18.x" },
+    "api/**.js": { "runtime": "nodejs18.x" }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api).*)", "destination": "/" }

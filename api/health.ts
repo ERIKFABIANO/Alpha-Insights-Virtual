@@ -1,4 +1,4 @@
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs18.x' };
 
 export default async function handler(_req: Request): Promise<Response> {
   const payload = { ok: true, ts: Date.now() };

@@ -249,7 +249,6 @@ export default async function handler(req: any, res: any) {
     const question = typeof prompt === 'string' && prompt.length ? prompt : (typeof message === 'string' ? message : '');
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.LLM_API_KEY || '';
-    const folderId = process.env.DRIVE_FOLDER_ID || '';
 
     // 1) Se veio upload direto do usuário, priorizar essa leitura
     if (Array.isArray(files) && files.length > 0) {
@@ -281,48 +280,36 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 2) Caso não haja upload, tenta Google Drive
-    const haveGoogleCreds = Boolean(folderId && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI && process.env.GOOGLE_REFRESH_TOKEN);
-    if (haveGoogleCreds) {
-      try {
-        const { google } = await import('googleapis');
-        const oauth2 = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI);
-        oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
-        await withTimeout(oauth2.getAccessToken(), 5000);
-
-        const filesDrive = await withTimeout(listFilesFromDrive(folderId, oauth2), 8000);
-        const month = detectMonth(question || '');
-        if (!month) {
-          const names = filesDrive.map(f => f.name);
-          const msg = names.length ? `Me diga o mês. Encontrei: ${names.join(', ')}.` : 'Não encontrei planilhas na pasta do Drive.';
-          return res.status(200).json({ response: msg });
-        }
-        const target = filesDrive.find(f => normalize(f.name).includes(month));
-        if (!target) {
-          const names = filesDrive.map(f => f.name);
-          return res.status(200).json({ response: names.length ? `Não achei a planilha de ${month}. Eu tenho: ${names.join(', ')}.` : `Não achei planilhas em ${folderId}.` });
-        }
-        const rows = await withTimeout(readRowsForFile(target, oauth2), 9000);
-        if (!rows.length) {
-          return res.status(200).json({ response: `A planilha "${target.name}" parece vazia ou inacessível.` });
-        }
-        const intent = detectIntent(question || '');
+    // 2) Caso não haja upload, consulta dados no Supabase (se houver)
+    try {
+      const { fetchRecentTransactions } = await import('./supabase')
+      const txs = await fetchRecentTransactions(2000)
+      if (txs.length > 0) {
+        const intent = detectIntent(question || '')
         if (intent.kind === 'expense') {
-          const sum = await sumExpensesForFile(target, oauth2);
-          const txt = `Total de despesas em ${target.name}: ${sum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
-          return res.status(200).json({ response: txt });
+          let total = 0
+          for (const t of txs) {
+            const n = typeof t.amount === 'number' ? t.amount : parsePtNumber(t.amount as any)
+            if (typeof n === 'number' && n < 0) total += n
+          }
+          const md = `**Total de despesas (amostra recente)**: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
+          return res.status(200).json({ response: md })
         }
-        if (apiKey) {
-          const summary = await summarizeRowsWithLLM(rows, apiKey, target.name, question || '');
-          if (summary) return res.status(200).json({ response: summary });
+        // Sem intenção específica: liste últimos arquivos/linhas
+        const byFile: Record<string, number> = {}
+        for (const t of txs) {
+          const fid = String(t.file_id ?? 'desconhecido')
+          byFile[fid] = (byFile[fid] || 0) + 1
         }
-        const sum = await sumExpensesForFile(target, oauth2);
-        const md = `**Total de despesas em ${target.name}**: ${sum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;
-        return res.status(200).json({ response: md });
-      } catch (err: any) {
-        const msg = err?.message || String(err);
-        return res.status(200).json({ response: `Não consegui acessar o Drive: ${msg}` });
+        const md = [
+          '**Dados no banco (amostra recente)**',
+          ...Object.entries(byFile).map(([fid, count]) => `- Arquivo ${fid}: ${count} linhas`)
+        ].join('\n')
+        return res.status(200).json({ response: md })
       }
+    } catch (err:any) {
+      // Ignora erros de conexão e segue para fallback LLM
+      console.error('Supabase query error:', err?.message || err)
     }
 
     // 3) Fallback puro via LLM se não há credenciais e sem upload

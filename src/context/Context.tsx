@@ -128,7 +128,7 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
       html = html.replace(/^#\s?(.*)$/gm, '<h1>$1</h1>')
       // Lists
       html = html.replace(/^\-\s(.*)$/gm, '<li>$1</li>')
-      html = html.replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m.replace(/\n/g,'')}</ul>`)
+      html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match.replace(/\n/g,'')}</ul>`)
       // Line breaks
       html = html.replace(/\n/g, '<br/>')
       return html

@@ -1,13 +1,12 @@
 export const config = { runtime: 'nodejs' };
 
-import type { NextApiRequest, NextApiResponse } from 'next'
-import { insertFileWithRows } from './supabase'
+import { insertFileWithRows } from './supabase.js'
 
 function bufferFromBase64(input: string): Buffer {
   return Buffer.from(input, 'base64')
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: any, res: any) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 

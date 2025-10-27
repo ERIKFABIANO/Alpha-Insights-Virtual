@@ -2,19 +2,19 @@ export const config = { runtime: 'nodejs' };
 
 import { insertFileWithRows } from './supabase.js'
 
-function bufferFromBase64(input: string): Buffer {
+function bufferFromBase64(input) {
   return Buffer.from(input, 'base64')
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
     const body = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body) } catch { return {} } })() : (req.body || {})
-    const { name, bufferBase64, content, encoding } = body as any
+    const { name, bufferBase64, content, encoding } = body
     const lower = (name || '').toLowerCase()
 
-    let rows: Record<string, any>[] = []
+    let rows = []
     if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
       const XLSX = (await import('xlsx')).default
       const base64 = bufferBase64 || (encoding === 'base64' ? content : undefined)
@@ -22,14 +22,14 @@ export default async function handler(req: any, res: any) {
       const wb = XLSX.read(buf, { type: 'buffer' })
       const sheetName = wb.SheetNames[0]
       const sheet = wb.Sheets[sheetName]
-      rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as Record<string, any>[]
+      rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
     } else if (lower.endsWith('.csv')) {
       const text = content || ''
       const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0)
       const headers = lines[0]?.split(/;|,/).map(h => h.trim()) || []
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(/;|,/)
-        const obj: Record<string, any> = {}
+        const obj = {}
         headers.forEach((h, idx) => obj[h] = cols[idx] ?? '')
         rows.push(obj)
       }
@@ -40,7 +40,7 @@ export default async function handler(req: any, res: any) {
     const limited = rows.slice(0, 5000)
     const { fileId } = await insertFileWithRows(name || 'arquivo', limited)
     return res.status(200).json({ ok: true, fileId, rowsInserted: limited.length })
-  } catch (err: any) {
+  } catch (err) {
     return res.status(500).json({ error: 'Falha ao ingerir arquivo', details: err?.message || String(err) })
   }
 }

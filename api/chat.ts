@@ -282,7 +282,6 @@ export default async function handler(req: any, res: any) {
 
     // 2) Caso não haja upload, consulta dados no Supabase (se houver)
     try {
-      const { fetchRecentTransactions } = await import('./supabase')
       const txs = await fetchRecentTransactions(2000)
       if (txs.length > 0) {
         const intent = detectIntent(question || '')
@@ -353,3 +352,4 @@ function sumExpensesFromRows(rows: Record<string, any>[]): number {
   }
   return total;
 }
+import { fetchRecentTransactions } from './supabase'

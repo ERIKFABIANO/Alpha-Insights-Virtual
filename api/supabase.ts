@@ -17,6 +17,27 @@ export type DbTransaction = {
   raw?: any
 }
 
+function parsePtNumber(v: any): number | null {
+  if (v == null) return null
+  let s = String(v).trim()
+  if (!s) return null
+  s = s.replace(/[R$\s]/g, '')
+  if (/^[-\d.,]+$/.test(s)) {
+    const partsComma = s.split(',')
+    if (partsComma.length === 2) {
+      const whole = partsComma[0].replace(/\./g, '')
+      const frac = partsComma[1]
+      const joined = `${whole}.${frac}`
+      const n = Number(joined)
+      return Number.isFinite(n) ? n : null
+    }
+    const n = Number(s.replace(/,/g, '.'))
+    return Number.isFinite(n) ? n : null
+  }
+  const n = Number(s)
+  return Number.isFinite(n) ? n : null
+}
+
 export async function insertFileWithRows(name: string, rows: Record<string, any>[]): Promise<{ fileId?: number }>{
   const { data: fileIns, error: fileErr } = await supabase.from('files').insert({ name }).select('id').limit(1)
   if (fileErr) throw fileErr
@@ -27,7 +48,12 @@ export async function insertFileWithRows(name: string, rows: Record<string, any>
     date: (r['Data'] || r['Date'] || null) as any,
     category: (r['Categoria'] || r['Category'] || null) as any,
     description: (r['Descrição'] || r['Description'] || null) as any,
-    amount: typeof r['Valor'] === 'number' ? r['Valor'] : (typeof r['Amount'] === 'number' ? r['Amount'] : null),
+    amount: (() => {
+      const rawVal = r['Valor'] ?? r['Amount'] ?? null
+      if (typeof rawVal === 'number') return rawVal
+      const parsed = parsePtNumber(rawVal)
+      return parsed
+    })(),
     raw: r,
   }))
 

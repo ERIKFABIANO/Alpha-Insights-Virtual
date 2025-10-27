@@ -110,7 +110,11 @@ const ContextProvider = ({ children }: ContextProviderProps) => {
       // Conversão básica para HTML: títulos, negrito, itálico, listas e quebras de linha
       let html = md
       // Code blocks
-      html = html.replace(/```([\s\S]*?)```/g, (m, p1) => `<pre><code>${p1.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`)
+      html = html.replace(/```([\s\S]*?)```/g, (_match, p1) => {
+        // reference _match to satisfy TS noUnusedParameters
+        void _match
+        return `<pre><code>${p1.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`
+      })
       // Bold **text**
       html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       // Italic *text*

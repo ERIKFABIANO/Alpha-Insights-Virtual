@@ -92,18 +92,7 @@ function detectMonthInfo(text: string): { monthName: string | null; monthNum: st
     'dezembro': '12', 'dez': '12',
   };
 
-  let year: string | null = null;
-  const yearMatch = t.match(/\b(20\d{2})\b/);
-  if (yearMatch) year = yearMatch[1];
-
-  // 1) Tentar palavras completas e abreviações
-  for (const k of Object.keys(monthMap)) {
-    if (t.includes(k)) {
-      return { monthName: k, monthNum: monthMap[k], year };
-    }
-  }
-
-  // 2) Tentar padrões numéricos: YYYY-MM, MM/YYYY, MM-YYYY, ou menções isoladas de MM
+  // 1) Padrões explícitos com ano: YYYY-MM ou MM/YYYY
   const isoMatch = t.match(/\b(20\d{2})[-\/](0[1-9]|1[0-2])\b/); // 2025-03 ou 2025/03
   if (isoMatch) {
     return { monthName: null, monthNum: isoMatch[2], year: isoMatch[1] };
@@ -114,9 +103,21 @@ function detectMonthInfo(text: string): { monthName: string | null; monthNum: st
     return { monthName: null, monthNum: revMatch[1], year: revMatch[2] };
   }
 
-  const loneMonth = t.match(/\b(0[1-9]|1[0-2])\b/); // menção isolada: 03
+  // 2) Palavras com ano próximo (evitar pegar qualquer 2000/2025 solto)
+  for (const k of Object.keys(monthMap)) {
+    if (t.includes(k)) {
+      let nearYear: string | null = null;
+      const re = new RegExp(`${k}\\s*(?:de|/|-)\\s*(20\\d{2})`);
+      const m = t.match(re);
+      if (m) nearYear = m[1];
+      return { monthName: k, monthNum: monthMap[k], year: nearYear };
+    }
+  }
+
+  // 3) Menção isolada do mês (sem ano)
+  const loneMonth = t.match(/\b(0[1-9]|1[0-2])\b/);
   if (loneMonth) {
-    return { monthName: null, monthNum: loneMonth[1], year };
+    return { monthName: null, monthNum: loneMonth[1], year: null };
   }
 
   return { monthName: null, monthNum: null, year: null };
@@ -215,7 +216,7 @@ function parseFilters(question: string, txs: any[]): Filters {
   const monthRange = detectMonthRangeInfo(question)
   const categories = detectCategoriesFromTransactions(question, txs)
   let topN: number|null = null
-  const topMatch = t.match(/\btop\s*(\d{1,2})\b/)
+  const topMatch = t.match(/\btop\s*(\d{1,2})\b/) || t.match(/\bmaiores\s*(\d{1,2})\b/)
   if (topMatch) topN = parseInt(topMatch[1])
   let groupBy: Filters['groupBy'] = null
   if (t.includes('por categoria') || t.includes('por categorias')) groupBy = 'category'
@@ -486,7 +487,7 @@ export default async function handler(req: any, res: any) {
       const txs = await fetchRecentTransactions(2000)
       if (txs.length > 0) {
         const filters = parseFilters(question || '', txs)
-        if (filters.kind === 'expense' || filters.monthInfo?.monthNum || filters.monthRange || (filters.categories && filters.categories.length > 0) || filters.amountMin != null || filters.amountMax != null) {
+        if (filters.kind === 'expense' || filters.monthInfo?.monthNum || filters.monthRange || (filters.categories && filters.categories.length > 0) || filters.amountMin != null || filters.amountMax != null || filters.topN != null || filters.groupBy != null) {
           const analysis = analyzeWithFilters(txs, filters)
           return res.status(200).json({ response: analysis })
         }
@@ -798,7 +799,7 @@ function analyzeWithFilters(txs: any[], filters: Filters): string {
   const sortedCats = Object.entries(byCategory).sort(([,a],[,b])=>b-a)
   const topN = filters.topN || null
   if (sortedCats.length > 0) {
-    md.push('**📊 Categorias:**')
+    md.push(`**📊 ${topN ? `Top ${topN} Categorias` : 'Categorias'}:**`)
     const list = topN ? sortedCats.slice(0, topN) : sortedCats
     for (const [cat,val] of list) md.push(`- ${cat}: ${val.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
     md.push('')

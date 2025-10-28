@@ -74,6 +74,54 @@ function detectMonth(text: string): string | null {
   return null;
 }
 
+// Detecção mais robusta de mês e ano a partir do texto
+function detectMonthInfo(text: string): { monthName: string | null; monthNum: string | null; year: string | null } {
+  const t = normalize(text);
+  const monthMap: Record<string, string> = {
+    'janeiro': '01', 'jan': '01',
+    'fevereiro': '02', 'fev': '02',
+    'marco': '03', 'mar': '03',
+    'abril': '04', 'abr': '04',
+    'maio': '05', 'mai': '05',
+    'junho': '06', 'jun': '06',
+    'julho': '07', 'jul': '07',
+    'agosto': '08', 'ago': '08',
+    'setembro': '09', 'set': '09',
+    'outubro': '10', 'out': '10',
+    'novembro': '11', 'nov': '11',
+    'dezembro': '12', 'dez': '12',
+  };
+
+  let year: string | null = null;
+  const yearMatch = t.match(/\b(20\d{2})\b/);
+  if (yearMatch) year = yearMatch[1];
+
+  // 1) Tentar palavras completas e abreviações
+  for (const k of Object.keys(monthMap)) {
+    if (t.includes(k)) {
+      return { monthName: k, monthNum: monthMap[k], year };
+    }
+  }
+
+  // 2) Tentar padrões numéricos: YYYY-MM, MM/YYYY, MM-YYYY, ou menções isoladas de MM
+  const isoMatch = t.match(/\b(20\d{2})[-\/](0[1-9]|1[0-2])\b/); // 2025-03 ou 2025/03
+  if (isoMatch) {
+    return { monthName: null, monthNum: isoMatch[2], year: isoMatch[1] };
+  }
+
+  const revMatch = t.match(/\b(0[1-9]|1[0-2])[-\/](20\d{2})\b/); // 03/2025 ou 03-2025
+  if (revMatch) {
+    return { monthName: null, monthNum: revMatch[1], year: revMatch[2] };
+  }
+
+  const loneMonth = t.match(/\b(0[1-9]|1[0-2])\b/); // menção isolada: 03
+  if (loneMonth) {
+    return { monthName: null, monthNum: loneMonth[1], year };
+  }
+
+  return { monthName: null, monthNum: null, year: null };
+}
+
 function detectCategory(question: string, rows: Record<string, any>[]): string | null {
   const q = normalize(question);
   if (!q) return null;
@@ -274,11 +322,11 @@ export default async function handler(req: any, res: any) {
         const rows = await withTimeout(rowsFromUpload(first), 8000);
         if (rows.length) {
           const intent = detectIntent(question || '');
-          const detectedMonth = detectMonth(question || '');
+          const monthInfo = detectMonthInfo(question || '');
 
           // Se o usuário perguntou por mês, filtrar linhas por mês
-          if (detectedMonth) {
-            const monthNum = getMonthNumber(detectedMonth);
+          if (monthInfo.monthNum) {
+            const monthNum = monthInfo.monthNum;
             const filtered = rows.filter(r => {
               const d = r['Data'] || r['Date'] || '';
               if (!d) return false;
@@ -290,7 +338,7 @@ export default async function handler(req: any, res: any) {
               } catch {}
               // fallback: checar substring do mês
               const ds = String(d).toLowerCase();
-              return ds.includes(detectedMonth) || ds.includes(monthNum);
+              return ds.includes(monthNum) || ds.includes(getMonthNamePortuguese(monthNum));
             });
             const detectedCategory = detectCategory(question || '', filtered);
             const filteredByCategory = detectedCategory
@@ -303,7 +351,7 @@ export default async function handler(req: any, res: any) {
               if (typeof n === 'number') total += Math.abs(n);
             }
             const md = [
-              `## Gastos em ${detectedMonth.charAt(0).toUpperCase() + detectedMonth.slice(1)}`,
+              `## Gastos em ${getMonthNamePtFull(monthNum)}`,
               detectedCategory ? `- Categoria: ${detectedCategory}` : undefined,
               `- Linhas consideradas: ${filteredByCategory.length}`,
               `- Total de despesas: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
@@ -339,11 +387,11 @@ export default async function handler(req: any, res: any) {
       const txs = await fetchRecentTransactions(2000)
       if (txs.length > 0) {
         const intent = detectIntent(question || '')
-        const detectedMonth = detectMonth(question || '')
+        const monthInfo = detectMonthInfo(question || '')
         
-        if (intent.kind === 'expense' || detectedMonth) {
+        if (intent.kind === 'expense' || monthInfo.monthNum) {
           // Análise detalhada de gastos
-          const analysis = analyzeTransactions(txs, question || '', detectedMonth)
+          const analysis = analyzeTransactions(txs, question || '', monthInfo)
           return res.status(200).json({ response: analysis })
         }
         
@@ -395,15 +443,32 @@ function detectIntent(text: string): { kind: 'expense' | 'income' | 'savings' | 
   return { kind: 'generic' };
 }
 
-function analyzeTransactions(txs: any[], question: string, detectedMonth: string | null): string {
+function analyzeTransactions(txs: any[], question: string, monthInfo: { monthName: string | null; monthNum: string | null; year: string | null }): string {
   // Filtrar por mês se especificado
   let filteredTxs = txs;
-  if (detectedMonth) {
+  if (monthInfo?.monthNum) {
     filteredTxs = txs.filter(t => {
       if (t.date) {
         const dateStr = String(t.date).toLowerCase();
-        return dateStr.includes(detectedMonth) || 
-               dateStr.includes(getMonthNumber(detectedMonth));
+        // ISO YYYY-MM-DD
+        const iso = dateStr.match(/\b(20\d{2})-(0[1-9]|1[0-2])-(\d{2})\b/);
+        if (iso) {
+          const mm = iso[2];
+          const yyyy = iso[1];
+          if (mm === monthInfo.monthNum && (!monthInfo.year || monthInfo.year === yyyy)) return true;
+        }
+        // BR DD/MM/YYYY
+        const br = dateStr.match(/\b(\d{2})\/(0[1-9]|1[0-2])\/(20\d{2})\b/);
+        if (br) {
+          const mm = br[2];
+          const yyyy = br[3];
+          if (mm === monthInfo.monthNum && (!monthInfo.year || monthInfo.year === yyyy)) return true;
+        }
+        // Texto com mês
+        const monthWord = getMonthNamePortuguese(monthInfo.monthNum!);
+        if (monthWord && dateStr.includes(monthWord)) return true;
+        // Substring do número do mês
+        if (dateStr.includes(monthInfo.monthNum!)) return true;
       }
       return false;
     });
@@ -456,10 +521,11 @@ function analyzeTransactions(txs: any[], question: string, detectedMonth: string
   // Construir resposta
   let response = '';
   
-  if (detectedMonth) {
-    response += `## Análise para ${detectedMonth.charAt(0).toUpperCase() + detectedMonth.slice(1)}\n\n`;
+  if (monthInfo?.monthNum) {
+    const monthTitle = getMonthNamePtFull(monthInfo.monthNum);
+    response += `## Análise para ${monthTitle}${monthInfo.year ? `/${monthInfo.year}` : ''}\n\n`;
     if (filteredTxs.length === 0) {
-      response += `❌ Nenhuma transação encontrada para ${detectedMonth}.\n\n`;
+      response += `❌ Nenhuma transação encontrada para ${monthTitle}.\n\n`;
       return response;
     }
   } else {
@@ -518,6 +584,22 @@ function getMonthNumber(monthName: string): string {
 function getMonthName(monthNum: number): string {
   const months = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   return months[monthNum] || '';
+}
+
+function getMonthNamePtFull(monthNumStr: string): string {
+  const map: Record<string, string> = {
+    '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril', '05': 'Maio', '06': 'Junho',
+    '07': 'Julho', '08': 'Agosto', '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
+  };
+  return map[monthNumStr] || monthNumStr;
+}
+
+function getMonthNamePortuguese(monthNumStr: string): string | null {
+  const map: Record<string, string> = {
+    '01': 'janeiro', '02': 'fevereiro', '03': 'marco', '04': 'abril', '05': 'maio', '06': 'junho',
+    '07': 'julho', '08': 'agosto', '09': 'setembro', '10': 'outubro', '11': 'novembro', '12': 'dezembro'
+  };
+  return map[monthNumStr] || null;
 }
 
 function sumExpensesFromRows(rows: Record<string, any>[]): number {

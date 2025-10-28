@@ -530,6 +530,16 @@ export default async function handler(req: any, res: any) {
       const txs = await fetchRecentTransactions(2000)
       if (txs.length > 0) {
         const filters = parseFilters(question || '', txs)
+        // Fallback: se não detectou categorias, derive do texto explicitamente
+        if (!filters.categories || filters.categories.length === 0) {
+          const tnorm = normalize(question || '')
+          const syn: Record<string,string> = {
+            'alimentacao':'Alimentação','transporte':'Transporte','moradia':'Moradia','lazer':'Lazer','contas':'Contas','educacao':'Educação','saude':'Saúde','outros':'Outros'
+          }
+          const cats: string[] = []
+          for (const [n,c] of Object.entries(syn)) { if (tnorm.includes(n)) cats.push(c) }
+          if (cats.length > 0) filters.categories = Array.from(new Set(cats))
+        }
         if (filters.kind === 'expense' || filters.monthInfo?.monthNum || filters.monthRange || (filters.categories && filters.categories.length > 0) || filters.amountMin != null || filters.amountMax != null || filters.topN != null || filters.groupBy != null) {
           const analysis = analyzeWithFilters(txs, filters)
           return res.status(200).json({ response: analysis })

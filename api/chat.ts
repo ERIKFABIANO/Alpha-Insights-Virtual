@@ -346,8 +346,8 @@ function analyzeTransactions(txs: any[], question: string, detectedMonth: string
   let filteredTxs = txs;
   if (detectedMonth) {
     filteredTxs = txs.filter(t => {
-      if (t.date || t.created_at) {
-        const dateStr = String(t.date || t.created_at).toLowerCase();
+      if (t.date) {
+        const dateStr = String(t.date).toLowerCase();
         return dateStr.includes(detectedMonth) || 
                dateStr.includes(getMonthNumber(detectedMonth));
       }
@@ -360,27 +360,42 @@ function analyzeTransactions(txs: any[], question: string, detectedMonth: string
   let totalIncome = 0;
   const categories: Record<string, number> = {};
   const monthlyData: Record<string, number> = {};
+  let validTransactions = 0;
 
   for (const t of filteredTxs) {
-    const amount = typeof t.amount === 'number' ? t.amount : parsePtNumber(t.amount as any);
-    if (typeof amount !== 'number') continue;
+    // Usar a mesma lógica de parsing que o supabase.ts
+    let amount = t.amount;
+    if (typeof amount !== 'number') {
+      amount = parsePtNumber(amount);
+    }
+    
+    if (typeof amount !== 'number' || amount === 0) continue;
+    
+    validTransactions++;
 
     // Categorizar por tipo de transação
     const category = t.category || t.description || 'Outros';
-    categories[category] = (categories[category] || 0) + Math.abs(amount);
+    const absAmount = Math.abs(amount);
+    categories[category] = (categories[category] || 0) + absAmount;
 
-    // Separar receitas e despesas
+    // Separar receitas e despesas (assumindo que valores negativos são despesas)
     if (amount < 0) {
-      totalExpenses += Math.abs(amount);
+      totalExpenses += absAmount;
     } else {
       totalIncome += amount;
     }
 
     // Agrupar por mês
-    if (t.date || t.created_at) {
-      const date = new Date(t.date || t.created_at);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      monthlyData[monthKey] = (monthlyData[monthKey] || 0) + Math.abs(amount);
+    if (t.date) {
+      try {
+        const date = new Date(t.date);
+        if (!isNaN(date.getTime())) {
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          monthlyData[monthKey] = (monthlyData[monthKey] || 0) + absAmount;
+        }
+      } catch (e) {
+        // Ignorar datas inválidas
+      }
     }
   }
 
@@ -389,8 +404,17 @@ function analyzeTransactions(txs: any[], question: string, detectedMonth: string
   
   if (detectedMonth) {
     response += `## Análise para ${detectedMonth.charAt(0).toUpperCase() + detectedMonth.slice(1)}\n\n`;
+    if (filteredTxs.length === 0) {
+      response += `❌ Nenhuma transação encontrada para ${detectedMonth}.\n\n`;
+      return response;
+    }
   } else {
-    response += `## Análise Financeira (${filteredTxs.length} transações)\n\n`;
+    response += `## Análise Financeira (${validTransactions} transações válidas de ${filteredTxs.length} total)\n\n`;
+  }
+
+  if (validTransactions === 0) {
+    response += `❌ Nenhuma transação com valores válidos encontrada.\n\n`;
+    return response;
   }
 
   response += `**💰 Resumo Financeiro:**\n`;

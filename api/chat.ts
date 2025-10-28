@@ -564,7 +564,7 @@ function analyzeTransactions(txs: any[], question: string, monthInfo: { monthNam
   }
 
   // Dados mensais (se não filtrado por mês específico)
-  if (!detectedMonth && Object.keys(monthlyData).length > 1) {
+  if (!monthInfo?.monthNum && Object.keys(monthlyData).length > 1) {
     response += `**📅 Gastos por Mês:**\n`;
     const sortedMonths = Object.entries(monthlyData)
       .sort(([a], [b]) => b.localeCompare(a))

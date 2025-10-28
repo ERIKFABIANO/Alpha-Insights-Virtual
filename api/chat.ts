@@ -195,6 +195,13 @@ function detectMonthRangeInfo(text: string): Filters['monthRange'] | null {
       end: { monthNum: revRange[3], year: revRange[4] }
     }
   }
+  const betweenNums = t.match(/\bentre\s+(0[1-9]|1[0-2])[\/-](20\d{2})\s*(?:a|ate|e)\s*(0[1-9]|1[0-2])[\/-](20\d{2})\b/)
+  if (betweenNums) {
+    return {
+      start: { monthNum: betweenNums[1], year: betweenNums[2] },
+      end: { monthNum: betweenNums[3], year: betweenNums[4] }
+    }
+  }
   const words = {
     'janeiro':'01','fevereiro':'02','marco':'03','marco':'03','marco':'03','marco':'03','marco':'03',
     'marco':'03','marco':'03','marco':'03','abril':'04','maio':'05','junho':'06','julho':'07','agosto':'08','setembro':'09','outubro':'10','novembro':'11','dezembro':'12','jan':'01','fev':'02','mar':'03','abr':'04','mai':'05','jun':'06','jul':'07','ago':'08','set':'09','out':'10','nov':'11','dez':'12'

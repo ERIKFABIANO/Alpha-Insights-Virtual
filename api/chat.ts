@@ -203,7 +203,8 @@ async function rowsFromUpload(upload: { name: string, type?: string, size?: numb
     return data.slice(0, 400)
   }
   if (lower.endsWith('.csv')) {
-    const text = upload.content || ''
+    const base64 = upload.bufferBase64 || (upload.encoding === 'base64' ? upload.content : undefined)
+    const text = base64 ? Buffer.from(base64 as string, 'base64').toString('utf8') : (upload.content || '')
     return parseCsvRows(text).slice(0, 400)
   }
   // outros formatos não suportados diretamente
@@ -257,6 +258,37 @@ export default async function handler(req: any, res: any) {
         const rows = await withTimeout(rowsFromUpload(first), 8000);
         if (rows.length) {
           const intent = detectIntent(question || '');
+          const detectedMonth = detectMonth(question || '');
+
+          // Se o usuário perguntou por mês, filtrar linhas por mês
+          if (detectedMonth) {
+            const monthNum = getMonthNumber(detectedMonth);
+            const filtered = rows.filter(r => {
+              const d = r['Data'] || r['Date'] || '';
+              if (!d) return false;
+              try {
+                const dt = new Date(d);
+                if (!isNaN(dt.getTime())) {
+                  return String(dt.getMonth() + 1).padStart(2, '0') === monthNum;
+                }
+              } catch {}
+              // fallback: checar substring do mês
+              const ds = String(d).toLowerCase();
+              return ds.includes(detectedMonth) || ds.includes(monthNum);
+            });
+            let total = 0;
+            for (const r of filtered) {
+              const n = pickNumericValue(r);
+              if (typeof n === 'number') total += Math.abs(n);
+            }
+            const md = [
+              `## Gastos em ${detectedMonth.charAt(0).toUpperCase() + detectedMonth.slice(1)}`,
+              `- Linhas consideradas: ${filtered.length}`,
+              `- Total de despesas: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+            ].join('\n');
+            return res.status(200).json({ response: md });
+          }
+
           if (intent.kind === 'expense') {
             const total = sumExpensesFromRows(rows);
             const txt = `Total de despesas: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`;

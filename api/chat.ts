@@ -391,8 +391,13 @@ export default async function handler(req: any, res: any) {
         
         if (intent.kind === 'expense' || monthInfo.monthNum) {
           // Análise detalhada de gastos
-          const analysis = analyzeTransactions(txs, question || '', monthInfo)
-          return res.status(200).json({ response: analysis })
+          try {
+            const analysis = analyzeTransactions(txs, question || '', monthInfo)
+            return res.status(200).json({ response: analysis })
+          } catch (err:any) {
+            const msg = err?.message || String(err)
+            return res.status(200).json({ error: 'analysis_fail', details: msg })
+          }
         }
         
         // Sem intenção específica: liste últimos arquivos/linhas

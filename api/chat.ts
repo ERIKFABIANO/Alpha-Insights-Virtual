@@ -830,6 +830,7 @@ function analyzeWithFilters(txs: any[], filters: Filters): string {
   const byCategory: Record<string, number> = {}
   const byMonth: Record<string, number> = {}
   let valid = 0
+  const txForTop: {cat:string, desc:string, date:string, amount:number}[] = []
   for (const t of filtered) {
     let a = t.amount
     if (typeof a !== 'number') a = parsePtNumber(a)
@@ -840,6 +841,7 @@ function analyzeWithFilters(txs: any[], filters: Filters): string {
     else totalIncome += a
     const cat = t.category || 'Outros'
     byCategory[cat] = (byCategory[cat] || 0) + abs
+    if (a < 0) txForTop.push({ cat, desc: t.description || '', date: String(t.date||''), amount: Math.abs(a as number) })
     try {
       const d = new Date(t.date)
       if (!isNaN(d.getTime())) {
@@ -869,6 +871,22 @@ function analyzeWithFilters(txs: any[], filters: Filters): string {
     const list = topN ? sortedCats.slice(0, topN) : sortedCats
     for (const [cat,val] of list) md.push(`- ${cat}: ${val.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
     md.push('')
+  }
+
+  // Foco quando categorias específicas foram aplicadas: mostrar top 3 despesas
+  if (filters.categories && filters.categories.length > 0) {
+    const topTx = txForTop
+      .filter(tx => filters.categories!.map(c=>normalize(c)).some(cn => normalize(tx.cat).includes(cn)))
+      .sort((a,b)=>b.amount-a.amount)
+      .slice(0,3)
+    if (topTx.length > 0) {
+      md.push('**🔎 Top 3 maiores despesas nas categorias selecionadas:**')
+      for (const tx of topTx) {
+        const amt = tx.amount.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+        md.push(`- ${tx.cat} • ${amt} • ${tx.desc || '—'} • ${tx.date || ''}`)
+      }
+      md.push('')
+    }
   }
 
   if ((!filters.groupBy || filters.groupBy === 'month') && Object.keys(byMonth).length > 0) {

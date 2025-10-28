@@ -49,7 +49,8 @@ export async function insertFileWithRows(name: string, rows: Record<string, any>
     category: (r['Categoria'] || r['Category'] || null) as any,
     description: (r['Descrição'] || r['Description'] || null) as any,
     amount: (() => {
-      const rawVal = r['Valor'] ?? r['Amount'] ?? null
+      // Aceitar variações comuns de cabeçalho para valor
+      const rawVal = r['Valor'] ?? r['Amount'] ?? r['Valor (R$)'] ?? r['Valor(R$)'] ?? r['Valor R$'] ?? null
       if (typeof rawVal === 'number') return rawVal
       const parsed = parsePtNumber(rawVal)
       return parsed

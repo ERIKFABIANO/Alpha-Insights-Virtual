@@ -436,10 +436,18 @@ export default async function handler(req: any, res: any) {
 function detectIntent(text: string): { kind: 'expense' | 'income' | 'savings' | 'balance' | 'generic' } {
   const t = normalize(text);
   if (!t) return { kind: 'generic' };
-  const expenseTerms = ['despesa','despesas','gasto','gastos','saida','saidas','saída','saídas'];
+  // Cobrir variações comuns de "gastos"
+  const expenseTerms = [
+    'despesa','despesas',
+    'gasto','gastos',
+    'gastar','gaste','gastei','gastou','gastamos','gastaria',
+    'saida','saidas','saída','saídas'
+  ];
   for (const term of expenseTerms) {
     if (t.includes(term)) return { kind: 'expense' };
   }
+  // Heurística: qualquer menção a "gast" indica intenção de despesa
+  if (t.includes('gast')) return { kind: 'expense' };
   return { kind: 'generic' };
 }
 

@@ -1,6 +1,6 @@
 export const config = { runtime: 'nodejs' }
 
-import { fetchRecentTransactions } from './supabase'
+import { fetchRecentTransactions } from './supabase.js'
 
 export default async function handler(req: any, res: any) {
   try {

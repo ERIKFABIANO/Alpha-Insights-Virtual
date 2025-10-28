@@ -698,9 +698,39 @@ function analyzeWithFilters(txs: any[], filters: Filters): string {
 
   // Tipo: despesas/receitas
   const kind = filters.kind || 'generic'
+  if (kind === 'expense') {
+    filtered = filtered.filter(t => {
+      let v = t.amount
+      if (typeof v !== 'number') v = parsePtNumber(v)
+      return typeof v === 'number' && v < 0
+    })
+  } else if (kind === 'income') {
+    filtered = filtered.filter(t => {
+      let v = t.amount
+      if (typeof v !== 'number') v = parsePtNumber(v)
+      return typeof v === 'number' && v > 0
+    })
+  }
 
-  // Mês único
-  if (filters.monthInfo?.monthNum) {
+  // Intervalo de mês (prioritário)
+  if (filters.monthRange) {
+    const start = parseInt(filters.monthRange.start.monthNum)
+    const end = parseInt(filters.monthRange.end.monthNum)
+    const year = filters.monthRange.start.year || filters.monthRange.end.year || null
+    filtered = filtered.filter(t => {
+      try {
+        const d = new Date(t.date)
+        if (isNaN(d.getTime())) return false
+        const mm = d.getMonth() + 1
+        const yyyy = d.getFullYear()
+        const inYear = year ? yyyy === parseInt(year) : true
+        return inYear && mm >= start && mm <= end
+      } catch { return false }
+    })
+  }
+
+  // Mês único (aplicado apenas se não houver intervalo)
+  if (!filters.monthRange && filters.monthInfo?.monthNum) {
     const mi = filters.monthInfo
     filtered = filtered.filter(t => {
       const ds = String(t.date || '').toLowerCase()
@@ -716,23 +746,6 @@ function analyzeWithFilters(txs: any[], filters: Filters): string {
       }
       const name = getMonthNamePortuguese(mi!.monthNum!)
       return (!!name && ds.includes(name)) || ds.includes(mi!.monthNum!)
-    })
-  }
-
-  // Intervalo de mês
-  if (filters.monthRange) {
-    const start = parseInt(filters.monthRange.start.monthNum)
-    const end = parseInt(filters.monthRange.end.monthNum)
-    const year = filters.monthRange.start.year || filters.monthRange.end.year || null
-    filtered = filtered.filter(t => {
-      try {
-        const d = new Date(t.date)
-        if (isNaN(d.getTime())) return false
-        const mm = d.getMonth() + 1
-        const yyyy = d.getFullYear()
-        const inYear = year ? yyyy === parseInt(year) : true
-        return inYear && mm >= start && mm <= end
-      } catch { return false }
     })
   }
 

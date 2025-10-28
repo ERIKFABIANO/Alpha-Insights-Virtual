@@ -236,7 +236,23 @@ function parseFilters(question: string, txs: any[]): Filters {
   const monthInfoRaw = detectMonthInfo(question)
   const monthRange = detectMonthRangeInfo(question)
   const monthInfo = monthRange ? { monthName: null, monthNum: null, year: null } : monthInfoRaw
-  const categories = detectCategoriesFromTransactions(question, txs)
+  // Detectar categorias tanto pelo dataset quanto explicitamente pelo texto
+  const detected = detectCategoriesFromTransactions(question, txs)
+  const synonyms: Record<string, string> = {
+    'alimentacao': 'Alimentação',
+    'transporte': 'Transporte',
+    'moradia': 'Moradia',
+    'lazer': 'Lazer',
+    'contas': 'Contas',
+    'educacao': 'Educação',
+    'saude': 'Saúde',
+    'outros': 'Outros'
+  }
+  const explicit: string[] = []
+  for (const [norm, canon] of Object.entries(synonyms)) {
+    if (t.includes(norm)) explicit.push(canon)
+  }
+  const categories = Array.from(new Set([...(detected||[]), ...explicit]))
   let topN: number|null = null
   const topMatch = t.match(/\btop\s*(\d{1,2})\b/) || t.match(/\bmaiores\s*(\d{1,2})\b/)
   if (topMatch) topN = parseInt(topMatch[1])

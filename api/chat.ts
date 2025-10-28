@@ -154,6 +154,89 @@ function detectCategoryFromTransactions(question: string, txs: any[]): string | 
   return null;
 }
 
+// Detectar múltiplas categorias potenciais do banco
+function detectCategoriesFromTransactions(question: string, txs: any[]): string[] {
+  const q = normalize(question)
+  if (!q) return []
+  const candidates = new Set<string>()
+  for (const t of txs) {
+    const s = String(t.category || '').trim()
+    if (s) candidates.add(s)
+  }
+  const matched: string[] = []
+  for (const cat of candidates) {
+    const n = normalize(cat)
+    if (n && q.includes(n)) matched.push(cat)
+  }
+  return matched
+}
+
+// Filtros avançados extraídos da pergunta
+type Filters = {
+  kind?: 'expense'|'income'|'balance'|'generic'
+  monthInfo?: { monthName: string | null; monthNum: string | null; year: string | null }
+  monthRange?: { start: { monthNum: string, year: string | null }, end: { monthNum: string, year: string | null } }
+  dateRange?: { start: string|null, end: string|null }
+  categories?: string[]
+  topN?: number|null
+  groupBy?: 'category'|'month'|'day'|'file'|null
+  amountMin?: number|null
+  amountMax?: number|null
+}
+
+function detectMonthRangeInfo(text: string): Filters['monthRange'] | null {
+  const t = normalize(text)
+  // Padrões: "de MARCO a MAIO de 2025", "entre 03/2025 e 05/2025"
+  const revRange = t.match(/\b(0[1-9]|1[0-2])[\/-](20\d{2})\s*(?:a|ate|e)\s*(0[1-9]|1[0-2])[\/-](20\d{2})\b/)
+  if (revRange) {
+    return {
+      start: { monthNum: revRange[1], year: revRange[2] },
+      end: { monthNum: revRange[3], year: revRange[4] }
+    }
+  }
+  const words = {
+    'janeiro':'01','fevereiro':'02','marco':'03','marco':'03','marco':'03','marco':'03','marco':'03',
+    'marco':'03','marco':'03','marco':'03','abril':'04','maio':'05','junho':'06','julho':'07','agosto':'08','setembro':'09','outubro':'10','novembro':'11','dezembro':'12','jan':'01','fev':'02','mar':'03','abr':'04','mai':'05','jun':'06','jul':'07','ago':'08','set':'09','out':'10','nov':'11','dez':'12'
+  }
+  const wordRange = t.match(/\b(de|entre)\s+([a-z]+)\s*(?:a|ate|e)\s*([a-z]+)(?:\s+de\s+(20\d{2}))?/)
+  if (wordRange) {
+    const m1 = words[wordRange[2]]
+    const m2 = words[wordRange[3]]
+    const y = wordRange[4] || null
+    if (m1 && m2) return { start: { monthNum: m1, year: y }, end: { monthNum: m2, year: y } }
+  }
+  return null
+}
+
+function parseFilters(question: string, txs: any[]): Filters {
+  const t = normalize(question)
+  const kind = detectIntent(question).kind
+  const monthInfo = detectMonthInfo(question)
+  const monthRange = detectMonthRangeInfo(question)
+  const categories = detectCategoriesFromTransactions(question, txs)
+  let topN: number|null = null
+  const topMatch = t.match(/\btop\s*(\d{1,2})\b/)
+  if (topMatch) topN = parseInt(topMatch[1])
+  let groupBy: Filters['groupBy'] = null
+  if (t.includes('por categoria') || t.includes('por categorias')) groupBy = 'category'
+  else if (t.includes('por mes') || t.includes('por mês')) groupBy = 'month'
+  else if (t.includes('por dia')) groupBy = 'day'
+  else if (t.includes('por arquivo')) groupBy = 'file'
+  let amountMin: number|null = null
+  let amountMax: number|null = null
+  const money = (s:string) => parsePtNumber(s)
+  const minMatch = question.match(/maior\s+que\s+([R$\s\d\.,-]+)/i)
+  if (minMatch) amountMin = money(minMatch[1])
+  const maxMatch = question.match(/menor\s+que\s+([R$\s\d\.,-]+)/i)
+  if (maxMatch) amountMax = money(maxMatch[1])
+  const betweenMatch = question.match(/entre\s+([R$\s\d\.,-]+)\s+e\s+([R$\s\d\.,-]+)/i)
+  if (betweenMatch) {
+    amountMin = money(betweenMatch[1])
+    amountMax = money(betweenMatch[2])
+  }
+  return { kind, monthInfo, monthRange, categories, topN, groupBy, amountMin, amountMax }
+}
+
 async function readGoogleSheet(spreadsheetId: string, auth: any): Promise<Record<string, any>[]> {
   const { google } = await import('googleapis');
   const sheets = google.sheets({ version: 'v4', auth });
@@ -402,12 +485,9 @@ export default async function handler(req: any, res: any) {
     try {
       const txs = await fetchRecentTransactions(2000)
       if (txs.length > 0) {
-        const intent = detectIntent(question || '')
-        const monthInfo = detectMonthInfo(question || '')
-        
-        if (intent.kind === 'expense' || monthInfo.monthNum) {
-          // Análise detalhada de gastos
-          const analysis = analyzeTransactions(txs, question || '', monthInfo)
+        const filters = parseFilters(question || '', txs)
+        if (filters.kind === 'expense' || filters.monthInfo?.monthNum || filters.monthRange || (filters.categories && filters.categories.length > 0) || filters.amountMin != null || filters.amountMax != null) {
+          const analysis = analyzeWithFilters(txs, filters)
           return res.status(200).json({ response: analysis })
         }
         
@@ -609,6 +689,132 @@ function analyzeTransactions(txs: any[], question: string, monthInfo: { monthNam
   }
 
   return response;
+}
+
+// Nova versão que aceita filtros avançados
+function analyzeWithFilters(txs: any[], filters: Filters): string {
+  let filtered = txs.slice()
+
+  // Tipo: despesas/receitas
+  const kind = filters.kind || 'generic'
+
+  // Mês único
+  if (filters.monthInfo?.monthNum) {
+    const mi = filters.monthInfo
+    filtered = filtered.filter(t => {
+      const ds = String(t.date || '').toLowerCase()
+      const iso = ds.match(/\b(20\d{2})-(0[1-9]|1[0-2])-(\d{2})\b/)
+      if (iso) {
+        const mm = iso[2], yyyy = iso[1]
+        return mm === mi!.monthNum && (!mi!.year || mi!.year === yyyy)
+      }
+      const br = ds.match(/\b(\d{2})\/(0[1-9]|1[0-2])\/(20\d{2})\b/)
+      if (br) {
+        const mm = br[2], yyyy = br[3]
+        return mm === mi!.monthNum && (!mi!.year || mi!.year === yyyy)
+      }
+      const name = getMonthNamePortuguese(mi!.monthNum!)
+      return (!!name && ds.includes(name)) || ds.includes(mi!.monthNum!)
+    })
+  }
+
+  // Intervalo de mês
+  if (filters.monthRange) {
+    const start = parseInt(filters.monthRange.start.monthNum)
+    const end = parseInt(filters.monthRange.end.monthNum)
+    const year = filters.monthRange.start.year || filters.monthRange.end.year || null
+    filtered = filtered.filter(t => {
+      try {
+        const d = new Date(t.date)
+        if (isNaN(d.getTime())) return false
+        const mm = d.getMonth() + 1
+        const yyyy = d.getFullYear()
+        const inYear = year ? yyyy === parseInt(year) : true
+        return inYear && mm >= start && mm <= end
+      } catch { return false }
+    })
+  }
+
+  // Categorias múltiplas
+  if (filters.categories && filters.categories.length > 0) {
+    const targets = filters.categories.map(c => normalize(c))
+    filtered = filtered.filter(t => {
+      const cat = normalize(t.category || '')
+      return targets.some(tc => cat.includes(tc))
+    })
+  }
+
+  // Faixa de valores
+  if (filters.amountMin != null || filters.amountMax != null) {
+    filtered = filtered.filter(t => {
+      let v = t.amount
+      if (typeof v !== 'number') v = parsePtNumber(v)
+      if (typeof v !== 'number') return false
+      const n = v as number
+      if (filters.amountMin != null && Math.abs(n) < (filters.amountMin as number)) return false
+      if (filters.amountMax != null && Math.abs(n) > (filters.amountMax as number)) return false
+      return true
+    })
+  }
+
+  // Totais e agrupamentos
+  let totalExpenses = 0
+  let totalIncome = 0
+  const byCategory: Record<string, number> = {}
+  const byMonth: Record<string, number> = {}
+  let valid = 0
+  for (const t of filtered) {
+    let a = t.amount
+    if (typeof a !== 'number') a = parsePtNumber(a)
+    if (typeof a !== 'number' || a === 0) continue
+    valid++
+    const abs = Math.abs(a)
+    if (a < 0) totalExpenses += abs
+    else totalIncome += a
+    const cat = t.category || 'Outros'
+    byCategory[cat] = (byCategory[cat] || 0) + abs
+    try {
+      const d = new Date(t.date)
+      if (!isNaN(d.getTime())) {
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+        byMonth[key] = (byMonth[key] || 0) + abs
+      }
+    } catch {}
+  }
+
+  const md: string[] = []
+  const monthTitle = filters.monthInfo?.monthNum ? getMonthNamePtFull(filters.monthInfo.monthNum) + (filters.monthInfo.year ? `/${filters.monthInfo.year}` : '') : null
+  const rangeTitle = filters.monthRange ? `${getMonthNamePtFull(filters.monthRange.start.monthNum)}${filters.monthRange.start.year?`/${filters.monthRange.start.year}`:''} → ${getMonthNamePtFull(filters.monthRange.end.monthNum)}${filters.monthRange.end.year?`/${filters.monthRange.end.year}`:''}` : null
+  md.push(`## Análise ${monthTitle ? `para ${monthTitle}` : (rangeTitle ? `(${rangeTitle})` : '')}`)
+  if (filters.categories && filters.categories.length > 0) md.push(`**Categoria(s):** ${filters.categories.join(', ')}`)
+  md.push('')
+  md.push('**💰 Resumo Financeiro:**')
+  md.push(`- Total de Despesas: ${totalExpenses.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+  md.push(`- Total de Receitas: ${totalIncome.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+  md.push(`- Saldo: ${(totalIncome-totalExpenses).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+  md.push('')
+
+  // Top N categorias ou todas
+  const sortedCats = Object.entries(byCategory).sort(([,a],[,b])=>b-a)
+  const topN = filters.topN || null
+  if (sortedCats.length > 0) {
+    md.push('**📊 Categorias:**')
+    const list = topN ? sortedCats.slice(0, topN) : sortedCats
+    for (const [cat,val] of list) md.push(`- ${cat}: ${val.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    md.push('')
+  }
+
+  if ((!filters.groupBy || filters.groupBy === 'month') && Object.keys(byMonth).length > 0) {
+    md.push('**📅 Gastos por Mês:**')
+    const sorted = Object.entries(byMonth).sort(([a],[b])=>b.localeCompare(a)).slice(0,12)
+    for (const [key,val] of sorted) {
+      const [y,m] = key.split('-')
+      md.push(`- ${getMonthName(parseInt(m))}/${y}: ${val.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    }
+  }
+
+  if (valid === 0) return `❌ Nenhuma transação com valores válidos encontrada.`
+  return md.join('\n')
 }
 
 function getMonthNumber(monthName: string): string {

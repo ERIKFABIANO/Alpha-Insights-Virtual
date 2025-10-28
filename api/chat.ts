@@ -352,4 +352,4 @@ function sumExpensesFromRows(rows: Record<string, any>[]): number {
   }
   return total;
 }
-import { fetchRecentTransactions } from './supabase'
+import { fetchRecentTransactions } from './supabase.js'

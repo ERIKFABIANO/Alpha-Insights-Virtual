@@ -23,8 +23,10 @@ export default async function handler(req, res) {
       const sheetName = wb.SheetNames[0]
       const sheet = wb.Sheets[sheetName]
       rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
-    } else if (lower.endsWith('.csv')) {
-      const text = content || ''
+  } else if (lower.endsWith('.csv')) {
+      // Suportar conteúdo em base64 (caso clientes enviem como buffer)
+      const base64 = bufferBase64 || (encoding === 'base64' ? content : undefined)
+      const text = base64 ? Buffer.from(base64, 'base64').toString('utf8') : (typeof content === 'string' ? content : String(content || ''))
       const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0)
       const headers = lines[0]?.split(/;|,/).map(h => h.trim()) || []
       for (let i = 1; i < lines.length; i++) {

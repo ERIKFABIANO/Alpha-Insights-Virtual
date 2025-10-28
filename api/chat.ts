@@ -165,9 +165,14 @@ function detectCategoriesFromTransactions(question: string, txs: any[]): string[
     if (s) candidates.add(s)
   }
   const matched = new Set<string>()
+  const hasWord = (needle: string) => {
+    const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const re = new RegExp(`(^|\\W)${esc}($|\\W)`, 'i')
+    return re.test(q)
+  }
   for (const cat of candidates) {
     const n = normalize(cat)
-    if (n && q.includes(n)) matched.add(cat)
+    if (n && hasWord(n)) matched.add(cat)
   }
   // Cobrir sinônimos comuns, independente de aparecimento nos últimos registros
   const synonyms: Record<string, string> = {
@@ -181,7 +186,7 @@ function detectCategoriesFromTransactions(question: string, txs: any[]): string[
     'outros': 'Outros'
   }
   for (const [norm, canon] of Object.entries(synonyms)) {
-    if (q.includes(norm)) matched.add(canon)
+    if (hasWord(norm)) matched.add(canon)
   }
   return Array.from(matched)
 }

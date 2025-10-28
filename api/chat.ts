@@ -219,8 +219,9 @@ function detectMonthRangeInfo(text: string): Filters['monthRange'] | null {
 function parseFilters(question: string, txs: any[]): Filters {
   const t = normalize(question)
   const kind = detectIntent(question).kind
-  const monthInfo = detectMonthInfo(question)
+  const monthInfoRaw = detectMonthInfo(question)
   const monthRange = detectMonthRangeInfo(question)
+  const monthInfo = monthRange ? { monthName: null, monthNum: null, year: null } : monthInfoRaw
   const categories = detectCategoriesFromTransactions(question, txs)
   let topN: number|null = null
   const topMatch = t.match(/\btop\s*(\d{1,2})\b/) || t.match(/\bmaiores\s*(\d{1,2})\b/)

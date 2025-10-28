@@ -74,6 +74,22 @@ function detectMonth(text: string): string | null {
   return null;
 }
 
+function detectCategory(question: string, rows: Record<string, any>[]): string | null {
+  const q = normalize(question);
+  if (!q) return null;
+  const candidates = new Set<string>();
+  for (const r of rows) {
+    const c = r['Categoria'] || r['Category'] || '';
+    const s = String(c).trim();
+    if (s) candidates.add(s);
+  }
+  for (const cat of candidates) {
+    const n = normalize(cat);
+    if (n && q.includes(n)) return cat;
+  }
+  return null;
+}
+
 async function readGoogleSheet(spreadsheetId: string, auth: any): Promise<Record<string, any>[]> {
   const { google } = await import('googleapis');
   const sheets = google.sheets({ version: 'v4', auth });
@@ -276,16 +292,22 @@ export default async function handler(req: any, res: any) {
               const ds = String(d).toLowerCase();
               return ds.includes(detectedMonth) || ds.includes(monthNum);
             });
+            const detectedCategory = detectCategory(question || '', filtered);
+            const filteredByCategory = detectedCategory
+              ? filtered.filter(r => normalize(r['Categoria'] || r['Category'] || '').includes(normalize(detectedCategory)))
+              : filtered;
+
             let total = 0;
-            for (const r of filtered) {
+            for (const r of filteredByCategory) {
               const n = pickNumericValue(r);
               if (typeof n === 'number') total += Math.abs(n);
             }
             const md = [
               `## Gastos em ${detectedMonth.charAt(0).toUpperCase() + detectedMonth.slice(1)}`,
-              `- Linhas consideradas: ${filtered.length}`,
+              detectedCategory ? `- Categoria: ${detectedCategory}` : undefined,
+              `- Linhas consideradas: ${filteredByCategory.length}`,
               `- Total de despesas: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
-            ].join('\n');
+            ].filter(Boolean).join('\n');
             return res.status(200).json({ response: md });
           }
 

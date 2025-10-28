@@ -138,6 +138,22 @@ function detectCategory(question: string, rows: Record<string, any>[]): string |
   return null;
 }
 
+// Detecção de categoria com base nas transações do banco
+function detectCategoryFromTransactions(question: string, txs: any[]): string | null {
+  const q = normalize(question);
+  if (!q) return null;
+  const candidates = new Set<string>();
+  for (const t of txs) {
+    const s = String(t.category || '').trim();
+    if (s) candidates.add(s);
+  }
+  for (const cat of candidates) {
+    const n = normalize(cat);
+    if (n && q.includes(n)) return cat;
+  }
+  return null;
+}
+
 async function readGoogleSheet(spreadsheetId: string, auth: any): Promise<Record<string, any>[]> {
   const { google } = await import('googleapis');
   const sheets = google.sheets({ version: 'v4', auth });
@@ -391,13 +407,8 @@ export default async function handler(req: any, res: any) {
         
         if (intent.kind === 'expense' || monthInfo.monthNum) {
           // Análise detalhada de gastos
-          try {
-            const analysis = analyzeTransactions(txs, question || '', monthInfo)
-            return res.status(200).json({ response: analysis })
-          } catch (err:any) {
-            const msg = err?.message || String(err)
-            return res.status(200).json({ error: 'analysis_fail', details: msg })
-          }
+          const analysis = analyzeTransactions(txs, question || '', monthInfo)
+          return res.status(200).json({ response: analysis })
         }
         
         // Sem intenção específica: liste últimos arquivos/linhas
@@ -487,6 +498,15 @@ function analyzeTransactions(txs: any[], question: string, monthInfo: { monthNam
     });
   }
 
+  // Filtrar por categoria se especificada na pergunta
+  const detectedCategory = detectCategoryFromTransactions(question, txs);
+  if (detectedCategory) {
+    filteredTxs = filteredTxs.filter(t => {
+      const cat = normalize(t.category || '');
+      return cat.includes(normalize(detectedCategory));
+    });
+  }
+
   // Análise de gastos (valores positivos e negativos)
   let totalExpenses = 0;
   let totalIncome = 0;
@@ -537,12 +557,18 @@ function analyzeTransactions(txs: any[], question: string, monthInfo: { monthNam
   if (monthInfo?.monthNum) {
     const monthTitle = getMonthNamePtFull(monthInfo.monthNum);
     response += `## Análise para ${monthTitle}${monthInfo.year ? `/${monthInfo.year}` : ''}\n\n`;
+    if (detectedCategory) {
+      response += `**Categoria:** ${detectedCategory}\n\n`;
+    }
     if (filteredTxs.length === 0) {
       response += `❌ Nenhuma transação encontrada para ${monthTitle}.\n\n`;
       return response;
     }
   } else {
     response += `## Análise Financeira (${validTransactions} transações válidas de ${filteredTxs.length} total)\n\n`;
+    if (detectedCategory) {
+      response += `**Categoria:** ${detectedCategory}\n\n`;
+    }
   }
 
   if (validTransactions === 0) {

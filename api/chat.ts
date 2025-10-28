@@ -804,9 +804,9 @@ function analyzeWithFilters(txs: any[], filters: Filters): string {
   }
 
   const md: string[] = []
-  const monthTitle = filters.monthInfo?.monthNum ? getMonthNamePtFull(filters.monthInfo.monthNum) + (filters.monthInfo.year ? `/${filters.monthInfo.year}` : '') : null
   const rangeTitle = filters.monthRange ? `${getMonthNamePtFull(filters.monthRange.start.monthNum)}${filters.monthRange.start.year?`/${filters.monthRange.start.year}`:''} → ${getMonthNamePtFull(filters.monthRange.end.monthNum)}${filters.monthRange.end.year?`/${filters.monthRange.end.year}`:''}` : null
-  md.push(`## Análise ${monthTitle ? `para ${monthTitle}` : (rangeTitle ? `(${rangeTitle})` : '')}`)
+  const monthTitle = !filters.monthRange && filters.monthInfo?.monthNum ? getMonthNamePtFull(filters.monthInfo.monthNum) + (filters.monthInfo.year ? `/${filters.monthInfo.year}` : '') : null
+  md.push(`## Análise ${rangeTitle ? `(${rangeTitle})` : (monthTitle ? `para ${monthTitle}` : '')}`)
   if (filters.categories && filters.categories.length > 0) md.push(`**Categoria(s):** ${filters.categories.join(', ')}`)
   md.push('')
   md.push('**💰 Resumo Financeiro:**')

@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
     const limited = rows.slice(0, 5000)
     const { fileId } = await insertFileWithRows(name || 'arquivo', limited)
-    return res.status(200).json({ ok: true, fileId, rowsInserted: limited.length })
+    return res.status(200).json({ ok: true, fileId, rowsInserted: limited.length, rowsParsed: rows.length, sampleRow: rows[0] || null })
   } catch (err) {
     return res.status(500).json({ error: 'Falha ao ingerir arquivo', details: err?.message || String(err) })
   }

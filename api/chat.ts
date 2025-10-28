@@ -285,15 +285,14 @@ export default async function handler(req: any, res: any) {
       const txs = await fetchRecentTransactions(2000)
       if (txs.length > 0) {
         const intent = detectIntent(question || '')
-        if (intent.kind === 'expense') {
-          let total = 0
-          for (const t of txs) {
-            const n = typeof t.amount === 'number' ? t.amount : parsePtNumber(t.amount as any)
-            if (typeof n === 'number' && n < 0) total += n
-          }
-          const md = `**Total de despesas (amostra recente)**: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
-          return res.status(200).json({ response: md })
+        const detectedMonth = detectMonth(question || '')
+        
+        if (intent.kind === 'expense' || detectedMonth) {
+          // Análise detalhada de gastos
+          const analysis = analyzeTransactions(txs, question || '', detectedMonth)
+          return res.status(200).json({ response: analysis })
         }
+        
         // Sem intenção específica: liste últimos arquivos/linhas
         const byFile: Record<string, number> = {}
         for (const t of txs) {
@@ -340,6 +339,107 @@ function detectIntent(text: string): { kind: 'expense' | 'income' | 'savings' | 
     if (t.includes(term)) return { kind: 'expense' };
   }
   return { kind: 'generic' };
+}
+
+function analyzeTransactions(txs: any[], question: string, detectedMonth: string | null): string {
+  // Filtrar por mês se especificado
+  let filteredTxs = txs;
+  if (detectedMonth) {
+    filteredTxs = txs.filter(t => {
+      if (t.date || t.created_at) {
+        const dateStr = String(t.date || t.created_at).toLowerCase();
+        return dateStr.includes(detectedMonth) || 
+               dateStr.includes(getMonthNumber(detectedMonth));
+      }
+      return false;
+    });
+  }
+
+  // Análise de gastos (valores positivos e negativos)
+  let totalExpenses = 0;
+  let totalIncome = 0;
+  const categories: Record<string, number> = {};
+  const monthlyData: Record<string, number> = {};
+
+  for (const t of filteredTxs) {
+    const amount = typeof t.amount === 'number' ? t.amount : parsePtNumber(t.amount as any);
+    if (typeof amount !== 'number') continue;
+
+    // Categorizar por tipo de transação
+    const category = t.category || t.description || 'Outros';
+    categories[category] = (categories[category] || 0) + Math.abs(amount);
+
+    // Separar receitas e despesas
+    if (amount < 0) {
+      totalExpenses += Math.abs(amount);
+    } else {
+      totalIncome += amount;
+    }
+
+    // Agrupar por mês
+    if (t.date || t.created_at) {
+      const date = new Date(t.date || t.created_at);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      monthlyData[monthKey] = (monthlyData[monthKey] || 0) + Math.abs(amount);
+    }
+  }
+
+  // Construir resposta
+  let response = '';
+  
+  if (detectedMonth) {
+    response += `## Análise para ${detectedMonth.charAt(0).toUpperCase() + detectedMonth.slice(1)}\n\n`;
+  } else {
+    response += `## Análise Financeira (${filteredTxs.length} transações)\n\n`;
+  }
+
+  response += `**💰 Resumo Financeiro:**\n`;
+  response += `- Total de Despesas: ${totalExpenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n`;
+  response += `- Total de Receitas: ${totalIncome.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n`;
+  response += `- Saldo: ${(totalIncome - totalExpenses).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n\n`;
+
+  // Top categorias
+  const sortedCategories = Object.entries(categories)
+    .sort(([,a], [,b]) => b - a)
+    .slice(0, 5);
+
+  if (sortedCategories.length > 0) {
+    response += `**📊 Top 5 Categorias:**\n`;
+    for (const [cat, amount] of sortedCategories) {
+      response += `- ${cat}: ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n`;
+    }
+    response += '\n';
+  }
+
+  // Dados mensais (se não filtrado por mês específico)
+  if (!detectedMonth && Object.keys(monthlyData).length > 1) {
+    response += `**📅 Gastos por Mês:**\n`;
+    const sortedMonths = Object.entries(monthlyData)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .slice(0, 6);
+    
+    for (const [month, amount] of sortedMonths) {
+      const [year, monthNum] = month.split('-');
+      const monthName = getMonthName(parseInt(monthNum));
+      response += `- ${monthName}/${year}: ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n`;
+    }
+  }
+
+  return response;
+}
+
+function getMonthNumber(monthName: string): string {
+  const months = {
+    'janeiro': '01', 'fevereiro': '02', 'março': '03', 'marco': '03',
+    'abril': '04', 'maio': '05', 'junho': '06', 'julho': '07',
+    'agosto': '08', 'setembro': '09', 'outubro': '10', 'novembro': '11', 'dezembro': '12'
+  };
+  return months[monthName as keyof typeof months] || '';
+}
+
+function getMonthName(monthNum: number): string {
+  const months = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  return months[monthNum] || '';
 }
 
 function sumExpensesFromRows(rows: Record<string, any>[]): number {

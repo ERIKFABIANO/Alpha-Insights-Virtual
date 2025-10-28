@@ -164,12 +164,26 @@ function detectCategoriesFromTransactions(question: string, txs: any[]): string[
     const s = String(t.category || '').trim()
     if (s) candidates.add(s)
   }
-  const matched: string[] = []
+  const matched = new Set<string>()
   for (const cat of candidates) {
     const n = normalize(cat)
-    if (n && q.includes(n)) matched.push(cat)
+    if (n && q.includes(n)) matched.add(cat)
   }
-  return matched
+  // Cobrir sinônimos comuns, independente de aparecimento nos últimos registros
+  const synonyms: Record<string, string> = {
+    'alimentacao': 'Alimentação',
+    'transporte': 'Transporte',
+    'moradia': 'Moradia',
+    'lazer': 'Lazer',
+    'contas': 'Contas',
+    'educacao': 'Educação',
+    'saude': 'Saúde',
+    'outros': 'Outros'
+  }
+  for (const [norm, canon] of Object.entries(synonyms)) {
+    if (q.includes(norm)) matched.add(canon)
+  }
+  return Array.from(matched)
 }
 
 // Filtros avançados extraídos da pergunta

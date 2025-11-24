@@ -17,6 +17,14 @@ export default function handler(_req: any, res: any) {
         process.env.GOOGLE_REDIRECT_URI &&
         process.env.GOOGLE_REFRESH_TOKEN
       ),
+      // Supabase
+      hasSupabaseUrl: Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
+      hasSupabaseKey: Boolean(process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY),
+      hasSupabaseAnon: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+      haveSupabaseConfigured: Boolean(
+        (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+        ((process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY) || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      ),
     },
   };
   return res.status(200).json(payload);

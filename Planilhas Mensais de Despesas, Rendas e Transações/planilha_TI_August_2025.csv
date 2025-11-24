@@ -1,0 +1,109 @@
+﻿ID da Transação;Data;Tipo;Descrição;Categoria;Produto;Quantidade;Valor (R$);Custo (R$)
+VENDA08015;2025-08-01;Receita;Venda de 1x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;1;5500.0;3500.0
+CMV08015;2025-08-01;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;1;-3500.0;3500.0
+VENDA08033;2025-08-03;Receita;Venda de 3x Webcam HD;Venda - Acessório;Webcam HD;3;570.0;300.0
+CMV08033;2025-08-03;Despesa;Custo da Mercadoria Vendida (Webcam HD);Custo de Venda;Webcam HD;3;-300.0;300.0
+FIXA08SER;2025-08-03;Despesa;Serviços de Internet/Telefonia;Despesa Fixa;;0;-500.0;500.0
+FIXA08CON;2025-08-03;Despesa;Contabilidade Mensal;Despesa Fixa;;0;-800.0;800.0
+VENDA08003;2025-08-03;Receita;Venda de 1x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;1;5500.0;3500.0
+CMV08003;2025-08-03;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;1;-3500.0;3500.0
+FIXA08SAL;2025-08-03;Despesa;Salários (Equipe Fixa);Despesa Fixa;;0;-15000.0;15000.0
+FIXA08ALU;2025-08-03;Despesa;Aluguel Escritório;Despesa Fixa;;0;-5000.0;5000.0
+CMV08021;2025-08-03;Despesa;Custo da Mercadoria Vendida (Teclado Mecânico);Custo de Venda;Teclado Mecânico;3;-450.0;450.0
+VENDA08021;2025-08-03;Receita;Venda de 3x Teclado Mecânico;Venda - Acessório;Teclado Mecânico;3;840.0;450.0
+VENDA08048;2025-08-03;Receita;Venda de 1x Teclado Mecânico;Venda - Acessório;Teclado Mecânico;1;280.0;150.0
+CMV08048;2025-08-03;Despesa;Custo da Mercadoria Vendida (Teclado Mecânico);Custo de Venda;Teclado Mecânico;1;-150.0;150.0
+CMV08039;2025-08-04;Despesa;Custo da Mercadoria Vendida (Servidor Cloud (Mensal));Custo de Venda;Servidor Cloud (Mensal);1;-800.0;800.0
+VENDA08039;2025-08-04;Receita;Venda de 1x Servidor Cloud (Mensal);Venda - Serviço;Servidor Cloud (Mensal);1;1500.0;800.0
+CMV08049;2025-08-05;Despesa;"Custo da Mercadoria Vendida (Monitor 27"" 4K)";Custo de Venda;"Monitor 27"" 4K";1;-1200.0;1200.0
+VENDA08020;2025-08-05;Receita;Venda de 1x Mouse Ergonômico;Venda - Acessório;Mouse Ergonômico;1;150.0;80.0
+VENDA08049;2025-08-05;Receita;"Venda de 1x Monitor 27"" 4K";Venda - Hardware;"Monitor 27"" 4K";1;1800.0;1200.0
+VENDA08013;2025-08-05;Receita;Venda de 1x Mouse Ergonômico;Venda - Acessório;Mouse Ergonômico;1;150.0;80.0
+CMV08020;2025-08-05;Despesa;Custo da Mercadoria Vendida (Mouse Ergonômico);Custo de Venda;Mouse Ergonômico;1;-80.0;80.0
+CMV08013;2025-08-05;Despesa;Custo da Mercadoria Vendida (Mouse Ergonômico);Custo de Venda;Mouse Ergonômico;1;-80.0;80.0
+VENDA08038;2025-08-06;Receita;Venda de 1x Licença Software CRM;Venda - Software;Licença Software CRM;1;999.0;500.0
+CMV08016;2025-08-06;Despesa;Custo da Mercadoria Vendida (Mouse Ergonômico);Custo de Venda;Mouse Ergonômico;1;-80.0;80.0
+VAR08MAT;2025-08-06;Despesa;Material de Escritório;Despesa Variável;;0;-215.62;215.62
+CMV08038;2025-08-06;Despesa;Custo da Mercadoria Vendida (Licença Software CRM);Custo de Venda;Licença Software CRM;1;-500.0;500.0
+VENDA08016;2025-08-06;Receita;Venda de 1x Mouse Ergonômico;Venda - Acessório;Mouse Ergonômico;1;150.0;80.0
+VENDA08006;2025-08-06;Receita;Venda de 1x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;1;5500.0;3500.0
+CMV08006;2025-08-06;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;1;-3500.0;3500.0
+VENDA08040;2025-08-07;Receita;"Venda de 2x Monitor 27"" 4K";Venda - Hardware;"Monitor 27"" 4K";2;3600.0;2400.0
+CMV08024;2025-08-07;Despesa;Custo da Mercadoria Vendida (Webcam HD);Custo de Venda;Webcam HD;1;-100.0;100.0
+VENDA08024;2025-08-07;Receita;Venda de 1x Webcam HD;Venda - Acessório;Webcam HD;1;190.0;100.0
+CMV08040;2025-08-07;Despesa;"Custo da Mercadoria Vendida (Monitor 27"" 4K)";Custo de Venda;"Monitor 27"" 4K";2;-2400.0;2400.0
+CMV08028;2025-08-08;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;2;-7000.0;7000.0
+VENDA08028;2025-08-08;Receita;Venda de 2x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;2;11000.0;7000.0
+CMV08026;2025-08-08;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;1;-3500.0;3500.0
+VENDA08026;2025-08-08;Receita;Venda de 1x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;1;5500.0;3500.0
+VENDA08022;2025-08-08;Receita;Venda de 2x Servidor Cloud (Mensal);Venda - Serviço;Servidor Cloud (Mensal);2;3000.0;1600.0
+CMV08022;2025-08-08;Despesa;Custo da Mercadoria Vendida (Servidor Cloud (Mensal));Custo de Venda;Servidor Cloud (Mensal);2;-1600.0;1600.0
+VENDA08009;2025-08-08;Receita;Venda de 1x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;1;5500.0;3500.0
+CMV08009;2025-08-08;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;1;-3500.0;3500.0
+VENDA08050;2025-08-09;Receita;Venda de 3x Serviço de Suporte (Hora);Venda - Serviço;Serviço de Suporte (Hora);3;450.0;150.0
+CMV08050;2025-08-09;Despesa;Custo da Mercadoria Vendida (Serviço de Suporte (Hora));Custo de Venda;Serviço de Suporte (Hora);3;-150.0;150.0
+CMV08008;2025-08-10;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;3;-10500.0;10500.0
+VENDA08008;2025-08-10;Receita;Venda de 3x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;3;16500.0;10500.0
+VENDA08030;2025-08-11;Receita;Venda de 1x Mouse Ergonômico;Venda - Acessório;Mouse Ergonômico;1;150.0;80.0
+CMV08030;2025-08-11;Despesa;Custo da Mercadoria Vendida (Mouse Ergonômico);Custo de Venda;Mouse Ergonômico;1;-80.0;80.0
+CMV08043;2025-08-13;Despesa;"Custo da Mercadoria Vendida (Monitor 27"" 4K)";Custo de Venda;"Monitor 27"" 4K";1;-1200.0;1200.0
+VENDA08043;2025-08-13;Receita;"Venda de 1x Monitor 27"" 4K";Venda - Hardware;"Monitor 27"" 4K";1;1800.0;1200.0
+VENDA08037;2025-08-14;Receita;Venda de 1x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;1;5500.0;3500.0
+CMV08037;2025-08-14;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;1;-3500.0;3500.0
+VENDA08012;2025-08-15;Receita;Venda de 1x Mouse Ergonômico;Venda - Acessório;Mouse Ergonômico;1;150.0;80.0
+CMV08012;2025-08-15;Despesa;Custo da Mercadoria Vendida (Mouse Ergonômico);Custo de Venda;Mouse Ergonômico;1;-80.0;80.0
+VENDA08017;2025-08-17;Receita;Venda de 3x Teclado Mecânico;Venda - Acessório;Teclado Mecânico;3;840.0;450.0
+CMV08017;2025-08-17;Despesa;Custo da Mercadoria Vendida (Teclado Mecânico);Custo de Venda;Teclado Mecânico;3;-450.0;450.0
+CMV08023;2025-08-17;Despesa;Custo da Mercadoria Vendida (Webcam HD);Custo de Venda;Webcam HD;1;-100.0;100.0
+CMV08001;2025-08-17;Despesa;Custo da Mercadoria Vendida (Webcam HD);Custo de Venda;Webcam HD;3;-300.0;300.0
+VENDA08023;2025-08-17;Receita;Venda de 1x Webcam HD;Venda - Acessório;Webcam HD;1;190.0;100.0
+VENDA08001;2025-08-17;Receita;Venda de 3x Webcam HD;Venda - Acessório;Webcam HD;3;570.0;300.0
+CMV08035;2025-08-18;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;1;-3500.0;3500.0
+VENDA08035;2025-08-18;Receita;Venda de 1x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;1;5500.0;3500.0
+CMV08027;2025-08-18;Despesa;"Custo da Mercadoria Vendida (Monitor 27"" 4K)";Custo de Venda;"Monitor 27"" 4K";1;-1200.0;1200.0
+VENDA08018;2025-08-18;Receita;Venda de 1x Serviço de Suporte (Hora);Venda - Serviço;Serviço de Suporte (Hora);1;150.0;50.0
+VENDA08005;2025-08-18;Receita;Venda de 1x Licença Software CRM;Venda - Software;Licença Software CRM;1;999.0;500.0
+CMV08005;2025-08-18;Despesa;Custo da Mercadoria Vendida (Licença Software CRM);Custo de Venda;Licença Software CRM;1;-500.0;500.0
+VENDA08027;2025-08-18;Receita;"Venda de 1x Monitor 27"" 4K";Venda - Hardware;"Monitor 27"" 4K";1;1800.0;1200.0
+CMV08018;2025-08-18;Despesa;Custo da Mercadoria Vendida (Serviço de Suporte (Hora));Custo de Venda;Serviço de Suporte (Hora);1;-50.0;50.0
+VENDA08042;2025-08-19;Receita;Venda de 1x Teclado Mecânico;Venda - Acessório;Teclado Mecânico;1;280.0;150.0
+VENDA08036;2025-08-19;Receita;Venda de 1x Serviço de Suporte (Hora);Venda - Serviço;Serviço de Suporte (Hora);1;150.0;50.0
+CMV08036;2025-08-19;Despesa;Custo da Mercadoria Vendida (Serviço de Suporte (Hora));Custo de Venda;Serviço de Suporte (Hora);1;-50.0;50.0
+CMV08042;2025-08-19;Despesa;Custo da Mercadoria Vendida (Teclado Mecânico);Custo de Venda;Teclado Mecânico;1;-150.0;150.0
+VAR08MAN;2025-08-20;Despesa;Manutenção de Equipamentos;Despesa Variável;;0;-481.38;481.38
+CMV08041;2025-08-20;Despesa;Custo da Mercadoria Vendida (Licença Software CRM);Custo de Venda;Licença Software CRM;1;-500.0;500.0
+VENDA08041;2025-08-20;Receita;Venda de 1x Licença Software CRM;Venda - Software;Licença Software CRM;1;999.0;500.0
+CMV08031;2025-08-20;Despesa;"Custo da Mercadoria Vendida (Monitor 27"" 4K)";Custo de Venda;"Monitor 27"" 4K";2;-2400.0;2400.0
+VENDA08031;2025-08-20;Receita;"Venda de 2x Monitor 27"" 4K";Venda - Hardware;"Monitor 27"" 4K";2;3600.0;2400.0
+VENDA08019;2025-08-21;Receita;Venda de 1x Webcam HD;Venda - Acessório;Webcam HD;1;190.0;100.0
+CMV08047;2025-08-21;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;1;-3500.0;3500.0
+VAR08UTI;2025-08-21;Despesa;Utilidades (Luz/Água);Despesa Variável;;0;-472.92;472.92
+CMV08019;2025-08-21;Despesa;Custo da Mercadoria Vendida (Webcam HD);Custo de Venda;Webcam HD;1;-100.0;100.0
+VENDA08047;2025-08-21;Receita;Venda de 1x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;1;5500.0;3500.0
+CMV08002;2025-08-24;Despesa;Custo da Mercadoria Vendida (Teclado Mecânico);Custo de Venda;Teclado Mecânico;2;-300.0;300.0
+CMV08044;2025-08-24;Despesa;Custo da Mercadoria Vendida (Webcam HD);Custo de Venda;Webcam HD;1;-100.0;100.0
+VENDA08044;2025-08-24;Receita;Venda de 1x Webcam HD;Venda - Acessório;Webcam HD;1;190.0;100.0
+VENDA08002;2025-08-24;Receita;Venda de 2x Teclado Mecânico;Venda - Acessório;Teclado Mecânico;2;560.0;300.0
+VENDA08032;2025-08-24;Receita;Venda de 3x Serviço de Suporte (Hora);Venda - Serviço;Serviço de Suporte (Hora);3;450.0;150.0
+CMV08032;2025-08-24;Despesa;Custo da Mercadoria Vendida (Serviço de Suporte (Hora));Custo de Venda;Serviço de Suporte (Hora);3;-150.0;150.0
+VENDA08025;2025-08-24;Receita;Venda de 2x Servidor Cloud (Mensal);Venda - Serviço;Servidor Cloud (Mensal);2;3000.0;1600.0
+CMV08025;2025-08-24;Despesa;Custo da Mercadoria Vendida (Servidor Cloud (Mensal));Custo de Venda;Servidor Cloud (Mensal);2;-1600.0;1600.0
+VENDA08014;2025-08-25;Receita;Venda de 1x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;1;5500.0;3500.0
+CMV08014;2025-08-25;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;1;-3500.0;3500.0
+VENDA08010;2025-08-27;Receita;Venda de 1x Mouse Ergonômico;Venda - Acessório;Mouse Ergonômico;1;150.0;80.0
+CMV08010;2025-08-27;Despesa;Custo da Mercadoria Vendida (Mouse Ergonômico);Custo de Venda;Mouse Ergonômico;1;-80.0;80.0
+VENDA08011;2025-08-28;Receita;Venda de 3x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;3;16500.0;10500.0
+CMV08011;2025-08-28;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;3;-10500.0;10500.0
+VENDA08046;2025-08-29;Receita;Venda de 2x Mouse Ergonômico;Venda - Acessório;Mouse Ergonômico;2;300.0;160.0
+VENDA08029;2025-08-29;Receita;Venda de 1x Serviço de Suporte (Hora);Venda - Serviço;Serviço de Suporte (Hora);1;150.0;50.0
+CMV08034;2025-08-29;Despesa;Custo da Mercadoria Vendida (Laptop Empresarial);Custo de Venda;Laptop Empresarial;1;-3500.0;3500.0
+VENDA08034;2025-08-29;Receita;Venda de 1x Laptop Empresarial;Venda - Hardware;Laptop Empresarial;1;5500.0;3500.0
+CMV08029;2025-08-29;Despesa;Custo da Mercadoria Vendida (Serviço de Suporte (Hora));Custo de Venda;Serviço de Suporte (Hora);1;-50.0;50.0
+CMV08046;2025-08-29;Despesa;Custo da Mercadoria Vendida (Mouse Ergonômico);Custo de Venda;Mouse Ergonômico;2;-160.0;160.0
+CMV08045;2025-08-30;Despesa;Custo da Mercadoria Vendida (Webcam HD);Custo de Venda;Webcam HD;1;-100.0;100.0
+VENDA08007;2025-08-30;Receita;"Venda de 1x Monitor 27"" 4K";Venda - Hardware;"Monitor 27"" 4K";1;1800.0;1200.0
+CMV08004;2025-08-30;Despesa;Custo da Mercadoria Vendida (Webcam HD);Custo de Venda;Webcam HD;3;-300.0;300.0
+VENDA08004;2025-08-30;Receita;Venda de 3x Webcam HD;Venda - Acessório;Webcam HD;3;570.0;300.0
+VENDA08045;2025-08-30;Receita;Venda de 1x Webcam HD;Venda - Acessório;Webcam HD;1;190.0;100.0
+CMV08007;2025-08-30;Despesa;"Custo da Mercadoria Vendida (Monitor 27"" 4K)";Custo de Venda;"Monitor 27"" 4K";1;-1200.0;1200.0
+VAR08MAR;2025-08-31;Despesa;Marketing Digital;Despesa Variável;;0;-1663.27;1663.27

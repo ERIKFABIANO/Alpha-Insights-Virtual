@@ -542,20 +542,18 @@ export default async function handler(req: any, res: any) {
         }
         if (filters.kind === 'expense' || filters.monthInfo?.monthNum || filters.monthRange || (filters.categories && filters.categories.length > 0) || filters.amountMin != null || filters.amountMax != null || filters.topN != null || filters.groupBy != null) {
           const analysis = analyzeWithFilters(txs, filters)
-          return res.status(200).json({ response: analysis })
+          const comparison = comparePeriodsAnalysis(txs)
+          const forecast = forecastNextMonth(txs)
+          const fullResponse = [analysis, comparison, forecast].filter(s => s.length > 0).join('\n\n')
+          return res.status(200).json({ response: fullResponse })
         }
         
-        // Sem intenção específica: liste últimos arquivos/linhas
-        const byFile: Record<string, number> = {}
-        for (const t of txs) {
-          const fid = String(t.file_id ?? 'desconhecido')
-          byFile[fid] = (byFile[fid] || 0) + 1
-        }
-        const md = [
-          '**Dados no banco (amostra recente)**',
-          ...Object.entries(byFile).map(([fid, count]) => `- Arquivo ${fid}: ${count} linhas`)
-        ].join('\n')
-        return res.status(200).json({ response: md })
+        // Sem intenção específica: análise geral com comparação e previsão
+        const generalAnalysis = analyzeWithFilters(txs, { kind: 'generic' })
+        const comparison = comparePeriodsAnalysis(txs)
+        const forecast = forecastNextMonth(txs)
+        const fullResponse = [generalAnalysis, comparison, forecast].filter(s => s.length > 0).join('\n\n')
+        return res.status(200).json({ response: fullResponse })
       }
     } catch (err:any) {
       // Ignora erros de conexão e segue para fallback LLM
@@ -745,7 +743,54 @@ function analyzeTransactions(txs: any[], question: string, monthInfo: { monthNam
   return response;
 }
 
-// Nova versão que aceita filtros avançados
+// Funções auxiliares para análise estatística
+function calculateStats(values: number[]): { mean: number; median: number; stdDev: number; min: number; max: number; q1: number; q3: number } {
+  if (values.length === 0) return { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, q1: 0, q3: 0 }
+  
+  const sorted = [...values].sort((a, b) => a - b)
+  const mean = values.reduce((a, b) => a + b, 0) / values.length
+  const median = sorted.length % 2 === 0 
+    ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2 
+    : sorted[Math.floor(sorted.length / 2)]
+  
+  const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length
+  const stdDev = Math.sqrt(variance)
+  
+  const q1Idx = Math.floor(sorted.length * 0.25)
+  const q3Idx = Math.floor(sorted.length * 0.75)
+  
+  return {
+    mean,
+    median,
+    stdDev,
+    min: sorted[0],
+    max: sorted[sorted.length - 1],
+    q1: sorted[q1Idx],
+    q3: sorted[q3Idx]
+  }
+}
+
+function detectAnomalies(values: number[], threshold = 2): number[] {
+  const stats = calculateStats(values)
+  return values.filter(v => Math.abs(v - stats.mean) > threshold * stats.stdDev)
+}
+
+function calculateTrend(monthlyValues: { month: string; value: number }[]): { trend: 'crescente' | 'decrescente' | 'estável'; percentChange: number } {
+  if (monthlyValues.length < 2) return { trend: 'estável', percentChange: 0 }
+  
+  const sorted = [...monthlyValues].sort((a, b) => a.month.localeCompare(b.month))
+  const first = sorted[0].value
+  const last = sorted[sorted.length - 1].value
+  const percentChange = ((last - first) / first) * 100
+  
+  let trend: 'crescente' | 'decrescente' | 'estável' = 'estável'
+  if (percentChange > 5) trend = 'crescente'
+  else if (percentChange < -5) trend = 'decrescente'
+  
+  return { trend, percentChange }
+}
+
+// Nova versão que aceita filtros avançados com análise técnica
 function analyzeWithFilters(txs: any[], filters: Filters): string {
   let filtered = txs.slice()
 
@@ -829,16 +874,22 @@ function analyzeWithFilters(txs: any[], filters: Filters): string {
   let totalIncome = 0
   const byCategory: Record<string, number> = {}
   const byMonth: Record<string, number> = {}
+  const expenseValues: number[] = []
   let valid = 0
   const txForTop: {cat:string, desc:string, date:string, amount:number}[] = []
+  
   for (const t of filtered) {
     let a = t.amount
     if (typeof a !== 'number') a = parsePtNumber(a)
     if (typeof a !== 'number' || a === 0) continue
     valid++
     const abs = Math.abs(a)
-    if (a < 0) totalExpenses += abs
-    else totalIncome += a
+    if (a < 0) {
+      totalExpenses += abs
+      expenseValues.push(abs)
+    } else {
+      totalIncome += a
+    }
     const cat = t.category || 'Outros'
     byCategory[cat] = (byCategory[cat] || 0) + abs
     if (a < 0) txForTop.push({ cat, desc: t.description || '', date: String(t.date||''), amount: Math.abs(a as number) })
@@ -851,25 +902,75 @@ function analyzeWithFilters(txs: any[], filters: Filters): string {
     } catch {}
   }
 
+  if (valid === 0) return `❌ Nenhuma transação com valores válidos encontrada.`
+
+  // Cálculos estatísticos
+  const stats = calculateStats(expenseValues)
+  const monthlyList = Object.entries(byMonth).map(([m, v]) => ({ month: m, value: v }))
+  const trend = calculateTrend(monthlyList)
+  const anomalies = detectAnomalies(expenseValues)
+  
+  // Indicadores financeiros
+  const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0
+  const expenseRatio = totalIncome > 0 ? (totalExpenses / totalIncome) * 100 : 0
+  const avgMonthlyExpense = Object.keys(byMonth).length > 0 ? totalExpenses / Object.keys(byMonth).length : 0
+
   const md: string[] = []
   const rangeTitle = filters.monthRange ? `${getMonthNamePtFull(filters.monthRange.start.monthNum)}${filters.monthRange.start.year?`/${filters.monthRange.start.year}`:''} → ${getMonthNamePtFull(filters.monthRange.end.monthNum)}${filters.monthRange.end.year?`/${filters.monthRange.end.year}`:''}` : null
   const monthTitle = !filters.monthRange && filters.monthInfo?.monthNum ? getMonthNamePtFull(filters.monthInfo.monthNum) + (filters.monthInfo.year ? `/${filters.monthInfo.year}` : '') : null
   md.push(`## Análise ${rangeTitle ? `(${rangeTitle})` : (monthTitle ? `para ${monthTitle}` : '')}`)
   if (filters.categories && filters.categories.length > 0) md.push(`**Categoria(s):** ${filters.categories.join(', ')}`)
   md.push('')
+  
   md.push('**💰 Resumo Financeiro:**')
   md.push(`- Total de Despesas: ${totalExpenses.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
   md.push(`- Total de Receitas: ${totalIncome.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
   md.push(`- Saldo: ${(totalIncome-totalExpenses).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+  md.push(`- Taxa de Poupança: ${savingsRate.toFixed(1)}%`)
+  md.push(`- Índice de Despesa: ${expenseRatio.toFixed(1)}%`)
   md.push('')
+
+  // Análise estatística
+  if (expenseValues.length > 0) {
+    md.push('**📊 Análise Estatística de Despesas:**')
+    md.push(`- Média: ${stats.mean.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    md.push(`- Mediana: ${stats.median.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    md.push(`- Desvio Padrão: ${stats.stdDev.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    md.push(`- Mínimo: ${stats.min.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    md.push(`- Máximo: ${stats.max.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    md.push(`- Q1 (25º percentil): ${stats.q1.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    md.push(`- Q3 (75º percentil): ${stats.q3.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    md.push('')
+  }
+
+  // Tendência
+  if (monthlyList.length > 1) {
+    md.push('**📈 Tendência de Gastos:**')
+    md.push(`- Direção: ${trend.trend === 'crescente' ? '📈 Crescente' : trend.trend === 'decrescente' ? '📉 Decrescente' : '➡️ Estável'}`)
+    md.push(`- Variação: ${trend.percentChange > 0 ? '+' : ''}${trend.percentChange.toFixed(1)}%`)
+    md.push(`- Média Mensal: ${avgMonthlyExpense.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    md.push('')
+  }
+
+  // Anomalias
+  if (anomalies.length > 0) {
+    md.push('**⚠️ Anomalias Detectadas (> 2σ):**')
+    for (const anom of anomalies.slice(0, 5)) {
+      md.push(`- ${anom.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    }
+    md.push('')
+  }
 
   // Top N categorias ou todas
   const sortedCats = Object.entries(byCategory).sort(([,a],[,b])=>b-a)
   const topN = filters.topN || null
   if (sortedCats.length > 0) {
-    md.push(`**📊 ${topN ? `Top ${topN} Categorias` : 'Categorias'}:**`)
+    md.push(`**🏆 ${topN ? `Top ${topN} Categorias` : 'Categorias'}:**`)
     const list = topN ? sortedCats.slice(0, topN) : sortedCats
-    for (const [cat,val] of list) md.push(`- ${cat}: ${val.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+    for (const [cat,val] of list) {
+      const pct = ((val / totalExpenses) * 100).toFixed(1)
+      md.push(`- ${cat}: ${val.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} (${pct}%)`)
+    }
     md.push('')
   }
 
@@ -894,11 +995,11 @@ function analyzeWithFilters(txs: any[], filters: Filters): string {
     const sorted = Object.entries(byMonth).sort(([a],[b])=>b.localeCompare(a)).slice(0,12)
     for (const [key,val] of sorted) {
       const [y,m] = key.split('-')
-      md.push(`- ${getMonthName(parseInt(m))}/${y}: ${val.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+      const pct = ((val / totalExpenses) * 100).toFixed(1)
+      md.push(`- ${getMonthName(parseInt(m))}/${y}: ${val.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} (${pct}%)`)
     }
   }
 
-  if (valid === 0) return `❌ Nenhuma transação com valores válidos encontrada.`
   return md.join('\n')
 }
 
@@ -942,4 +1043,82 @@ function sumExpensesFromRows(rows: Record<string, any>[]): number {
   }
   return total;
 }
+
+// Análise comparativa entre períodos
+function comparePeriodsAnalysis(txs: any[]): string {
+  const byMonth: Record<string, { expenses: number; income: number; count: number }> = {}
+  
+  for (const t of txs) {
+    let a = t.amount
+    if (typeof a !== 'number') a = parsePtNumber(a)
+    if (typeof a !== 'number' || a === 0) continue
+    
+    try {
+      const d = new Date(t.date)
+      if (isNaN(d.getTime())) continue
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+      
+      if (!byMonth[key]) byMonth[key] = { expenses: 0, income: 0, count: 0 }
+      byMonth[key].count++
+      
+      if (a < 0) byMonth[key].expenses += Math.abs(a)
+      else byMonth[key].income += a
+    } catch {}
+  }
+
+  const sorted = Object.entries(byMonth).sort(([a], [b]) => b.localeCompare(a)).slice(0, 6)
+  if (sorted.length < 2) return ''
+
+  const md: string[] = ['**📊 Comparação Período a Período:**']
+  
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const [currMonth, currData] = sorted[i]
+    const [prevMonth, prevData] = sorted[i + 1]
+    
+    const expDiff = currData.expenses - prevData.expenses
+    const expPct = prevData.expenses > 0 ? (expDiff / prevData.expenses) * 100 : 0
+    const incDiff = currData.income - prevData.income
+    const incPct = prevData.income > 0 ? (incDiff / prevData.income) * 100 : 0
+    
+    const [cy, cm] = currMonth.split('-')
+    const [py, pm] = prevMonth.split('-')
+    
+    md.push(`\n**${getMonthName(parseInt(cm))}/${cy} vs ${getMonthName(parseInt(pm))}/${py}:**`)
+    md.push(`- Despesas: ${currData.expenses.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} (${expPct > 0 ? '+' : ''}${expPct.toFixed(1)}%)`)
+    md.push(`- Receitas: ${currData.income.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} (${incPct > 0 ? '+' : ''}${incPct.toFixed(1)}%)`)
+  }
+  
+  return md.join('\n')
+}
+
+// Previsão simples baseada em média móvel
+function forecastNextMonth(txs: any[]): string {
+  const byMonth: Record<string, number> = {}
+  
+  for (const t of txs) {
+    let a = t.amount
+    if (typeof a !== 'number') a = parsePtNumber(a)
+    if (typeof a !== 'number' || a === 0 || a > 0) continue
+    
+    try {
+      const d = new Date(t.date)
+      if (isNaN(d.getTime())) continue
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+      byMonth[key] = (byMonth[key] || 0) + Math.abs(a)
+    } catch {}
+  }
+
+  const sorted = Object.entries(byMonth).sort(([a], [b]) => b.localeCompare(a)).slice(0, 3)
+  if (sorted.length === 0) return ''
+
+  const values = sorted.map(([, v]) => v)
+  const forecast = values.reduce((a, b) => a + b, 0) / values.length
+  
+  const md: string[] = ['**🔮 Previsão (Média Móvel 3 meses):**']
+  md.push(`- Despesa Estimada: ${forecast.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+  md.push(`- Intervalo de Confiança: ±${(forecast * 0.15).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`)
+  
+  return md.join('\n')
+}
+
 import { fetchRecentTransactions } from './supabase.js'
